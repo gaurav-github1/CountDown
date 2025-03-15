@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Countdown Timer</title>
+  <link rel="stylesheet" href="styles/newtab.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Use locally sourced anime.js -->
+  <script src="js/anime.min.js" defer></script>
+</head>
+<body>
+  <div class="progress-background" id="progress-background"></div>
+  
+  <div id="app">
+    <!-- Initial Setup Screen -->
+    <div id="setup-screen" class="screen">
+      <div class="setup-container">
+        <h1>Your Time Matters</h1>
+        <p class="description">Select a countdown timer to display on your new tab page:</p>
+        
+        <form id="setup-form">
+          <div class="timer-selection">
+            <div class="timer-option">
+              <input type="radio" id="life-timer" name="timer-type" value="life" checked>
+              <label for="life-timer">
+                <h3>Life Timer</h3>
+                <p>Counts down from your estimated lifespan based on your birthdate</p>
+              </label>
+            </div>
+            
+            <div class="timer-option">
+              <input type="radio" id="birthday-timer" name="timer-type" value="birthday">
+              <label for="birthday-timer">
+                <h3>Birthday Timer</h3>
+                <p>Counts down to your next birthday</p>
+              </label>
+            </div>
+            
+            <div class="timer-option">
+              <input type="radio" id="daily-timer" name="timer-type" value="daily">
+              <label for="daily-timer">
+                <h3>Daily Timer</h3>
+                <p>Counts down to midnight of the current day</p>
+              </label>
+            </div>
+          </div>
+          
+          <div id="birthdate-container" class="input-group">
+            <label for="birthdate">Your birthdate:</label>
+            <input type="date" id="birthdate" name="birthdate" required>
+          </div>
+          
+          <div id="life-expectancy-container" class="input-group">
+            <label for="life-expectancy">Life expectancy (years):</label>
+            <input type="number" id="life-expectancy" name="life-expectancy" min="1" max="120" value="80">
+          </div>
+          
+          <div class="button-container">
+            <button type="submit" id="save-settings">Start Countdown</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Timer Display Screen -->
+    <div id="timer-screen" class="screen hidden">
+      <div class="timer-container">
+        <div class="timer-header">
+          <h2 id="timer-title">Life Timer</h2>
+          <button id="settings-button" class="icon-button" title="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Dynamic Seek Bar -->
+        <div class="seek-bar-container">
+          <div id="seek-bar" class="seek-bar">
+            <div id="seek-bar-fill" class="seek-bar-fill"></div>
+            <div id="seek-bar-handle" class="seek-bar-handle"></div>
+          </div>
+        </div>
+        
+        <div class="timer-display">
+          <!-- Horizontal timer display layout with all units -->
+          <div class="countdown-container horizontal-layout">
+            <div id="countdown-value" class="countdown-digits">
+              <div id="years-container" class="time-unit">
+                <span class="time-label">Years</span>
+                <span id="years-value" class="digit-value">00</span>
+              </div>
+              <div class="time-separator">:</div>
+              
+              <div id="months-container" class="time-unit">
+                <span class="time-label">Months</span>
+                <span id="months-value" class="digit-value">00</span>
+              </div>
+              <div class="time-separator">:</div>
+              
+              <div id="days-container" class="time-unit">
+                <span class="time-label">Days</span>
+                <span id="days-value" class="digit-value">00</span>
+              </div>
+              <div class="time-separator">:</div>
+              
+              <div id="hours-container" class="time-unit">
+                <span class="time-label">Hours</span>
+                <span id="hours-value" class="digit-value">00</span>
+              </div>
+              <div class="time-separator">:</div>
+              
+              <div id="minutes-container" class="time-unit">
+                <span class="time-label">Minutes</span>
+                <span id="minutes-value" class="digit-value">00</span>
+              </div>
+              <div class="time-separator">:</div>
+              
+              <div id="seconds-container" class="time-unit">
+                <span class="time-label">Seconds</span>
+                <span id="seconds-value" class="digit-value">00</span>
+              </div>
+            </div>
+            <div id="countdown-message" class="hidden">
+              <p id="message-text"></p>
+            </div>
+          </div>
+          
+          <!-- Progress indicator (kept for backward compatibility) -->
+          <div class="progress-bar-container">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
+        </div>
+        
+        <div class="timer-footer">
+          <p id="timer-description"></p>
+          <p id="motivation-quote"></p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="loading-spinner"></div>
+      <p>Loading settings...</p>
+    </div>
+    
+    <!-- Error message container for showing critical errors -->
+    <div id="error-container" class="error-container hidden">
+      <div class="error-box">
+        <h3>Something went wrong</h3>
+        <p id="error-message">There was a problem loading the timer.</p>
+        <div class="error-actions">
+          <button id="retry-button" class="retry-button">Retry</button>
+          <button id="reset-button" class="reset-button">Reset Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Load required scripts with safe loading approach -->
+  <script src="js/app-loader.js"></script>
+</body>
+</html> 

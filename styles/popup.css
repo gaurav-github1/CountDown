@@ -1,0 +1,183 @@
+/* Base Styles */
+:root {
+  /* Light mode colors */
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --accent-color: #4a6ee0;
+  --border-color: #dee2e6;
+  --shadow-color: rgba(0, 0, 0, 0.05);
+  --input-bg: #ffffff;
+  --button-secondary: #e9ecef;
+  --button-secondary-hover: #dee2e6;
+  --button-secondary-text: #343a40;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark mode colors */
+    --bg-primary: #121212;
+    --bg-secondary: #1e1e1e;
+    --text-primary: #e9ecef;
+    --text-secondary: #adb5bd;
+    --accent-color: #6c8fff;
+    --border-color: #343a40;
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --input-bg: #2c2c2c;
+    --button-secondary: #2c2c2c;
+    --button-secondary-hover: #343a40;
+    --button-secondary-text: #e9ecef;
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.popup-container {
+  width: 350px;
+  padding: 1.5rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.settings-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.timer-selection {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.timer-option {
+  display: flex;
+  align-items: center;
+}
+
+.timer-option input[type="radio"] {
+  margin-right: 0.5rem;
+  accent-color: var(--accent-color);
+}
+
+.timer-option label {
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.input-group {
+  margin-bottom: 1rem;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.input-group input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.button-container {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+button {
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  border: none;
+  flex: 1;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+#popup-save-settings {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+#popup-save-settings:hover {
+  background-color: rgba(74, 110, 224, 0.9);
+}
+
+#popup-reset-settings {
+  background-color: var(--button-secondary);
+  color: var(--button-secondary-text);
+}
+
+#popup-reset-settings:hover {
+  background-color: var(--button-secondary-hover);
+}
+
+.settings-section p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.version {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 1rem;
+  text-align: right;
+} 
