@@ -11,65 +11,15 @@
   <!-- Use locally sourced anime.js -->
   <script src="js/anime.min.js" defer></script>
 </head>
-<body>
+<body class="win11-theme">
   <div class="progress-background" id="progress-background"></div>
   
   <div id="app">
-    <!-- Initial Setup Screen -->
-    <div id="setup-screen" class="screen">
-      <div class="setup-container">
-        <h1>Your Time Matters</h1>
-        <p class="description">Select a countdown timer to display on your new tab page:</p>
-        
-        <form id="setup-form">
-          <div class="timer-selection">
-            <div class="timer-option">
-              <input type="radio" id="life-timer" name="timer-type" value="life" checked>
-              <label for="life-timer">
-                <h3>Life Timer</h3>
-                <p>Counts down from your estimated lifespan based on your birthdate</p>
-              </label>
-            </div>
-            
-            <div class="timer-option">
-              <input type="radio" id="birthday-timer" name="timer-type" value="birthday">
-              <label for="birthday-timer">
-                <h3>Birthday Timer</h3>
-                <p>Counts down to your next birthday</p>
-              </label>
-            </div>
-            
-            <div class="timer-option">
-              <input type="radio" id="daily-timer" name="timer-type" value="daily">
-              <label for="daily-timer">
-                <h3>Daily Timer</h3>
-                <p>Counts down to midnight of the current day</p>
-              </label>
-            </div>
-          </div>
-          
-          <div id="birthdate-container" class="input-group">
-            <label for="birthdate">Your birthdate:</label>
-            <input type="date" id="birthdate" name="birthdate" required>
-          </div>
-          
-          <div id="life-expectancy-container" class="input-group">
-            <label for="life-expectancy">Life expectancy (years):</label>
-            <input type="number" id="life-expectancy" name="life-expectancy" min="1" max="120" value="80">
-          </div>
-          
-          <div class="button-container">
-            <button type="submit" id="save-settings">Start Countdown</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    
-    <!-- Timer Display Screen -->
-    <div id="timer-screen" class="screen hidden">
+    <!-- Timer Display Screen - Now shown by default -->
+    <div id="timer-screen" class="screen win11-mica">
       <div class="timer-container">
         <div class="timer-header">
-          <h2 id="timer-title">Life Timer</h2>
+          <h2 id="timer-title">Daily Timer</h2>
           <button id="settings-button" class="icon-button" title="Settings">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -137,20 +87,70 @@
         </div>
         
         <div class="timer-footer">
-          <p id="timer-description"></p>
-          <p id="motivation-quote"></p>
+          <p id="timer-description">Time remaining in today</p>
+          <p id="motivation-quote">"Don't count the days, make the days count."</p>
         </div>
       </div>
     </div>
     
+    <!-- Initial Setup Screen - Now hidden by default -->
+    <div id="setup-screen" class="screen hidden win11-mica">
+      <div class="setup-container">
+        <h1>Your Time Matters</h1>
+        <p class="description">Select a countdown timer to display on your new tab page:</p>
+        
+        <form id="setup-form">
+          <div class="timer-selection">
+            <div class="timer-option">
+              <input type="radio" id="life-timer" name="timer-type" value="life" checked>
+              <label for="life-timer">
+                <h3>Life Timer</h3>
+                <p>Counts down from your estimated lifespan based on your birthdate</p>
+              </label>
+            </div>
+            
+            <div class="timer-option">
+              <input type="radio" id="birthday-timer" name="timer-type" value="birthday">
+              <label for="birthday-timer">
+                <h3>Birthday Timer</h3>
+                <p>Counts down to your next birthday</p>
+              </label>
+            </div>
+            
+            <div class="timer-option">
+              <input type="radio" id="daily-timer" name="timer-type" value="daily">
+              <label for="daily-timer">
+                <h3>Daily Timer</h3>
+                <p>Counts down to midnight of the current day</p>
+              </label>
+            </div>
+          </div>
+          
+          <div id="birthdate-container" class="input-group">
+            <label for="birthdate">Your birthdate:</label>
+            <input type="date" id="birthdate" name="birthdate" required>
+          </div>
+          
+          <div id="life-expectancy-container" class="input-group">
+            <label for="life-expectancy">Life expectancy (years):</label>
+            <input type="number" id="life-expectancy" name="life-expectancy" min="1" max="120" value="80">
+          </div>
+          
+          <div class="button-container">
+            <button type="submit" id="save-settings">Start Countdown</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
     <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay hidden">
+    <div id="loading-overlay" class="loading-overlay hidden win11-acrylic">
       <div class="loading-spinner"></div>
       <p>Loading settings...</p>
     </div>
     
     <!-- Error message container for showing critical errors -->
-    <div id="error-container" class="error-container hidden">
+    <div id="error-container" class="error-container hidden win11-acrylic">
       <div class="error-box">
         <h3>Something went wrong</h3>
         <p id="error-message">There was a problem loading the timer.</p>

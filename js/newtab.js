@@ -191,15 +191,12 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function init() {
     try {
-      console.log('Initializing app...');
+      console.log('Initializing app with default Daily Timer...');
       
       // First check if DOM elements exist
-      if (!setupScreen || !timerScreen) {
-        console.error('Critical DOM elements missing:', {
-          setupScreen: !!setupScreen,
-          timerScreen: !!timerScreen
-        });
-        throw new Error('DOM elements not found');
+      if (!timerScreen) {
+        console.error('Critical DOM element missing: timerScreen');
+        throw new Error('Timer screen not found');
       }
       
       showLoading('Initializing timer...');
@@ -210,79 +207,170 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.warn('Anime.js not loaded, using fallback animations');
       }
       
-      // Safe animation initialization
-      if (animeAvailable) {
-        try {
-          anime({
-            targets: '.countdown-container',
-            opacity: [0, 1],
-            translateY: [30, 0],
-            easing: 'easeOutExpo',
-            duration: 1200,
-            autoplay: false
-          });
-        } catch (animError) {
-          console.warn('Animation initialization failed:', animError);
-          // Continue without animations
-        }
-      }
-      
       // Add event listeners - do this early to ensure UI is responsive
       console.log('Setting up event listeners');
       setupEventListeners();
       
-      // Check storage API availability
-      const storageAvailable = typeof chrome !== 'undefined' && 
-                               chrome.storage && 
-                               chrome.storage.sync;
+      // Apply animation indexes to time units for staggered animations
+      applyTimeUnitAnimationIndexes();
       
-      if (!storageAvailable) {
-        console.error('Chrome storage API unavailable');
-        // Show setup screen as fallback
-        handleStartupWithoutStorage();
-        return;
+      // Initialize with Daily timer as default
+      console.log('Setting up default Daily timer');
+      
+      // Set up timer screen - always shown by default
+      if (timerScreen) {
+        timerScreen.classList.remove('hidden');
+        timerScreen.style.display = 'block';
+        timerScreen.style.visibility = 'visible';
+        timerScreen.style.opacity = '1';
       }
       
-      let isSetupCompleted = false;
+      // Hide setup screen by default
+      if (setupScreen) {
+        setupScreen.classList.add('hidden');
+        setupScreen.style.display = 'none';
+      }
+      
+      // Try to get existing settings
+      let settings;
       try {
-        isSetupCompleted = await storageManager.isSetupCompleted();
-        console.log('Setup completed status:', isSetupCompleted);
+        if (storageManager) {
+          settings = await storageManager.getSettings();
+          console.log('Retrieved settings:', settings);
+        }
       } catch (storageError) {
-        console.error('Storage error:', storageError);
-        // Continue with setup screen as fallback
+        console.warn('Failed to get settings:', storageError);
+        // Continue with default settings
       }
       
-      if (isSetupCompleted) {
-        try {
-          console.log('Setup is completed, loading timer screen');
-          await loadTimerScreen();
-        } catch (timerError) {
-          console.error('Error loading timer:', timerError);
-          // Fall back to setup screen
-          showSetupScreen();
-        }
-      } else {
-        console.log('Setup not completed, showing setup screen');
-        await showSetupScreen();
+      // If no settings or storage not available, use default daily timer
+      if (!settings || !settings[StorageKeys.TIMER_TYPE]) {
+        console.log('No stored settings found, using default daily timer');
+        settings = {
+          [StorageKeys.TIMER_TYPE]: 'daily',
+          [StorageKeys.SETUP_COMPLETED]: true
+        };
         
-        // Ensure fields are properly shown/hidden based on selected timer type
-        console.log('Toggling input fields visibility after showing setup screen');
-        toggleInputsVisibility();
+        // Try to save the default settings
+        try {
+          if (storageManager) {
+            await storageManager.saveSettings(settings);
+            console.log('Saved default settings');
+          }
+        } catch (saveError) {
+          console.warn('Failed to save default settings:', saveError);
+          // Continue with default settings in memory
+        }
       }
+      
+      // Update UI elements for the current timer type
+      const timerType = settings[StorageKeys.TIMER_TYPE] || 'daily';
+      console.log('Using timer type:', timerType);
+      
+      // Update timer elements
+      if (timerTitle) updateTimerTitle(timerType);
+      if (timerDescription) updateTimerDescription(timerType);
+      if (motivationQuote) displayRandomQuote(timerType);
+      
+      // Start the timer updates
+      console.log('Starting timer updates');
+      startTimerUpdates(timerType, settings);
+      
+      // Add listeners for storage changes
+      if (chrome && chrome.storage && chrome.storage.onChanged) {
+        chrome.storage.onChanged.addListener((changes, area) => {
+          if (area === 'sync') {
+            console.log('Settings changed, updating timer');
+            handleStorageChanges(changes, area);
+          }
+        });
+      }
+      
+      // Ensure countdown is visible
+      showCountdownElements();
       
       hideLoading();
+      console.log('App initialization complete');
     } catch (error) {
       console.error('Critical error initializing app:', error);
-      // Fallback: Direct DOM manipulation to show setup form
+      // Fallback: Use default timer
       hideLoading();
-      if (setupScreen && timerScreen) {
-        setupScreen.classList.remove('hidden');
-        timerScreen.classList.add('hidden');
-        
-        // Ensure input fields visibility
-        console.log('Using safeToggleInputVisibility as fallback');
-        safeToggleInputVisibility();
-      }
+      showDefaultTimer();
+    }
+  }
+  
+  /**
+   * Apply animation indexes to time units for staggered animations
+   */
+  function applyTimeUnitAnimationIndexes() {
+    const timeUnits = document.querySelectorAll('.time-unit');
+    timeUnits.forEach((unit, index) => {
+      unit.style.setProperty('--index', index);
+    });
+  }
+  
+  /**
+   * Ensure all countdown elements are visible
+   */
+  function showCountdownElements() {
+    // Make sure countdown container is visible
+    const countdownContainer = document.querySelector('.countdown-container');
+    if (countdownContainer) {
+      countdownContainer.style.display = 'flex';
+      countdownContainer.style.visibility = 'visible';
+      countdownContainer.style.opacity = '1';
+    }
+    
+    // Make sure countdown digits wrapper is visible
+    const countdownValue = document.getElementById('countdown-value');
+    if (countdownValue) {
+      countdownValue.style.display = 'flex';
+      countdownValue.style.visibility = 'visible';
+      countdownValue.style.opacity = '1';
+    }
+    
+    // Make sure all time units are visible
+    document.querySelectorAll('.time-unit').forEach((unit, index) => {
+      unit.style.setProperty('--index', index);
+      unit.style.display = 'flex';
+      unit.style.visibility = 'visible';
+    });
+    
+    // Force immediate timer update
+    const timerType = document.getElementById('timer-title')?.textContent?.toLowerCase().includes('daily') ? 'daily' : 
+                     document.getElementById('timer-title')?.textContent?.toLowerCase().includes('birth') ? 'birthday' : 'life';
+                     
+    updateTimer(timerType, {});
+  }
+  
+  /**
+   * Show default timer (daily) when no settings are available
+   */
+  function showDefaultTimer() {
+    console.log('Showing default daily timer');
+    
+    // Create default settings for a daily timer
+    const defaultSettings = {
+      [StorageKeys.TIMER_TYPE]: 'daily',
+      [StorageKeys.SETUP_COMPLETED]: false
+    };
+    
+    // Hide setup screen, show timer screen
+    if (setupScreen && timerScreen) {
+      setupScreen.classList.add('hidden');
+      setupScreen.style.display = 'none';
+      
+      timerScreen.classList.remove('hidden');
+      timerScreen.style.display = 'block';
+      timerScreen.style.visibility = 'visible';
+      
+      // Update UI for daily timer
+      if (timerTitle) updateTimerTitle('daily');
+      if (timerDescription) updateTimerDescription('daily');
+      if (motivationQuote) displayRandomQuote('daily');
+      
+      // Start the timer updates
+      startTimerUpdates('daily', defaultSettings);
     }
   }
   
@@ -328,6 +416,93 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       console.warn('Chrome storage API not available - storage change events will not work');
     }
+    
+    // Listen for messages from popup
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener(handleMessageFromPopup);
+      console.log('Added message listener for popup communication');
+    } else {
+      console.warn('Chrome messaging API not available - popup communication will not work');
+    }
+  }
+  
+  /**
+   * Handle messages from popup.js
+   * @param {Object} message - The message object
+   * @param {Object} sender - Information about the sender
+   * @param {Function} sendResponse - Function to send a response
+   * @returns {boolean} - Whether the response will be sent asynchronously
+   */
+  function handleMessageFromPopup(message, sender, sendResponse) {
+    console.log('Received message from popup:', message);
+    
+    // Check if this is a settings update message
+    if (message && message.action === 'settingsUpdated') {
+      try {
+        console.log('Handling settings update message:', message.settings);
+        
+        // Convert message settings to storage format
+        const settings = {
+          [StorageKeys.TIMER_TYPE]: message.settings.timerType,
+          [StorageKeys.SETUP_COMPLETED]: message.settings.setupCompleted || true
+        };
+        
+        // Add conditional settings
+        if (message.settings.birthDate) {
+          settings[StorageKeys.BIRTH_DATE] = message.settings.birthDate;
+        }
+        
+        if (message.settings.lifeExpectancy) {
+          settings[StorageKeys.LIFE_EXPECTANCY] = message.settings.lifeExpectancy;
+        }
+        
+        // Clear any existing timer interval
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        
+        // Update the UI with new settings
+        const timerType = settings[StorageKeys.TIMER_TYPE];
+        
+        // Update timer UI elements
+        if (timerTitle) updateTimerTitle(timerType);
+        if (timerDescription) updateTimerDescription(timerType);
+        if (motivationQuote) displayRandomQuote(timerType);
+        
+        // Make sure timer screen is visible
+        if (setupScreen && timerScreen) {
+          setupScreen.classList.add('hidden');
+          setupScreen.style.display = 'none';
+          setupScreen.style.visibility = 'hidden';
+          
+          timerScreen.classList.remove('hidden');
+          timerScreen.style.display = 'block';
+          timerScreen.style.visibility = 'visible';
+          timerScreen.style.opacity = '1';
+        }
+        
+        // Start timer updates with new settings
+        startTimerUpdates(timerType, settings);
+        
+        // If popup requested reload, send reload response and let popup handle it
+        if (message.reload === true) {
+          console.log('Reload requested by popup, sending success response');
+          sendResponse({ status: 'success', message: 'Timer updated, page will reload', reload: true });
+        } else {
+          // Just send success response
+          sendResponse({ status: 'success', message: 'Timer updated with new settings' });
+        }
+      } catch (error) {
+        console.error('Error handling settings update message:', error);
+        sendResponse({ status: 'error', message: error.message });
+      }
+      return true; // Indicates we'll send response asynchronously
+    }
+    
+    // Default response for unhandled messages
+    sendResponse({ status: 'error', message: 'Unhandled message type' });
+    return false;
   }
   
   /**
@@ -1107,50 +1282,70 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Check if timerCalculator is defined
       if (!timerCalculator) {
         console.error('Timer calculator not defined');
-        return;
-      }
-      
-      console.log('Updating timer for type:', timerType);
-      
-      switch (timerType) {
-        case 'life':
-          if (settings[StorageKeys.BIRTH_DATE] && settings[StorageKeys.LIFE_EXPECTANCY]) {
-            timerData = timerCalculator.calculateLifeTimer(
-              settings[StorageKeys.BIRTH_DATE],
-              settings[StorageKeys.LIFE_EXPECTANCY]
-            );
-          } else {
-            // Fallback to daily timer if missing data
-            console.warn('Missing birth date or life expectancy, falling back to daily timer');
+        
+        // Create a basic fallback timer for displaying the UI even without calculations
+        timerData = {
+          years: 0,
+          months: 0,
+          days: 0,
+          hours: new Date().getHours(),
+          minutes: new Date().getMinutes(),
+          seconds: new Date().getSeconds(),
+          progressPercentage: (new Date().getHours() * 3600 + new Date().getMinutes() * 60 + new Date().getSeconds()) / 86400 * 100,
+          isPassed: false,
+          message: 'Fallback timer active'
+        };
+      } else {
+        console.log('Updating timer for type:', timerType);
+        
+        switch (timerType) {
+          case 'life':
+            if (settings[StorageKeys.BIRTH_DATE] && settings[StorageKeys.LIFE_EXPECTANCY]) {
+              timerData = timerCalculator.calculateLifeTimer(
+                settings[StorageKeys.BIRTH_DATE],
+                settings[StorageKeys.LIFE_EXPECTANCY]
+              );
+            } else {
+              // Fallback to daily timer if missing data
+              console.warn('Missing birth date or life expectancy, falling back to daily timer');
+              timerData = timerCalculator.calculateDailyTimer();
+            }
+            break;
+            
+          case 'birthday':
+            if (settings[StorageKeys.BIRTH_DATE]) {
+              timerData = timerCalculator.calculateBirthdayTimer(
+                settings[StorageKeys.BIRTH_DATE]
+              );
+            } else {
+              // Fallback to daily timer if missing data
+              console.warn('Missing birth date, falling back to daily timer');
+              timerData = timerCalculator.calculateDailyTimer();
+            }
+            break;
+            
+          case 'daily':
             timerData = timerCalculator.calculateDailyTimer();
-          }
-          break;
-          
-        case 'birthday':
-          if (settings[StorageKeys.BIRTH_DATE]) {
-            timerData = timerCalculator.calculateBirthdayTimer(
-              settings[StorageKeys.BIRTH_DATE]
-            );
-          } else {
-            // Fallback to daily timer if missing data
-            console.warn('Missing birth date, falling back to daily timer');
+            break;
+            
+          default:
+            console.error('Unknown timer type:', timerType);
             timerData = timerCalculator.calculateDailyTimer();
-          }
-          break;
-          
-        case 'daily':
-          timerData = timerCalculator.calculateDailyTimer();
-          break;
-          
-        default:
-          console.error('Unknown timer type:', timerType);
-          timerData = timerCalculator.calculateDailyTimer();
+        }
       }
       
       if (!timerData) {
         console.error('Failed to calculate timer data');
         return;
       }
+      
+      // Always update the UI elements to ensure they're displayed
+      // Update timer screen elements
+      if (timerTitle) updateTimerTitle(timerType);
+      if (timerDescription) updateTimerDescription(timerType);
+      
+      // Update the document title to show real-time countdown in browser tab
+      updateDocumentTitle(timerData, timerType);
       
       // Update countdown display with animation
       if (yearsValue && monthsValue && daysValue && hoursValue && minutesValue && secondsValue) {
@@ -1160,11 +1355,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       // Update progress visualization (both progress bar and seek bar)
-      if (progressBar && seekBarFill && seekBarHandle) {
-        updateProgressVisualization(timerData.progressPercentage, timerType);
+      if (progressBar) {
+        progressBar.style.width = `${timerData.progressPercentage}%`;
+      }
+      
+      if (seekBarFill && seekBarHandle) {
+        updateSeekBar(timerData.progressPercentage);
       } else {
         console.error('Progress visualization elements not found');
       }
+      
+      // Update background gradient based on progress
+      updateBackgroundGradient(timerData.progressPercentage, timerType);
       
       // Show message if applicable
       if (timerData.isPassed && timerData.message) {
@@ -1174,368 +1376,64 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         hideCountdownMessage();
       }
+      
+      // Make screen elements visible in case they were hidden
+      if (timerScreen) {
+        timerScreen.classList.remove('hidden');
+        timerScreen.style.display = 'block';
+        timerScreen.style.visibility = 'visible';
+        timerScreen.style.opacity = '1';
+      }
+      
+      // Log update success
+      console.log('Timer updated successfully:', timerData);
+      
     } catch (error) {
       console.error('Error updating timer:', error);
     }
   }
   
   /**
-   * Update the countdown display with time values and animations
+   * Update the document title to show the countdown in the browser tab
    * @param {Object} timerData - Timer calculation results
+   * @param {string} timerType - Type of timer
    */
-  function updateCountdownDisplay(timerData) {
-    if (!timerData) {
-      console.error('No timer data provided to updateCountdownDisplay');
-      return;
-    }
-    
-    console.log('Updating countdown display with data:', {
-      years: timerData.years,
-      months: timerData.months,
-      days: timerData.days,
-      hours: timerData.hours,
-      minutes: timerData.minutes,
-      seconds: timerData.seconds
-    });
-    
-    // Check for required DOM elements
-    const timeContainers = [
-      { name: 'Years', element: yearsContainer, value: yearsValue, data: timerData.years },
-      { name: 'Months', element: monthsContainer, value: monthsValue, data: timerData.months },
-      { name: 'Days', element: daysContainer, value: daysValue, data: timerData.days },
-      { name: 'Hours', element: hoursContainer, value: hoursValue, data: timerData.hours },
-      { name: 'Minutes', element: minutesContainer, value: minutesValue, data: timerData.minutes },
-      { name: 'Seconds', element: secondsContainer, value: secondsValue, data: timerData.seconds }
-    ];
-    
-    // Check if we're missing any essential elements
-    const missingElements = timeContainers.filter(item => !item.element || !item.value);
-    if (missingElements.length > 0) {
-      console.error('Missing timer elements:', missingElements.map(item => item.name).join(', '));
-    }
-    
-    // First ensure all containers are properly visible
-    timeContainers.forEach(item => {
-      // Skip if element doesn't exist
-      if (!item.element) return;
-      
-      // Make sure the container is displayed correctly
-      item.element.style.display = 'flex';
-      item.element.style.visibility = 'visible';
-      
-      // Fade in if not already visible
-      if (item.element.style.opacity !== '1') {
-        item.element.style.opacity = '1';
-      }
-    });
-    
-    // Now update each time value with animation
-    timeContainers.forEach(item => {
-      if (!item.element || !item.value) return;
-      
-      const previousValue = previousValues[item.name.toLowerCase()] || 0;
-      const hasChanged = previousValue !== item.data;
-      
-      // Update the digit with animation if changed
-      updateDigitWithAnimation(item.value, item.data, hasChanged);
-    });
-    
-    // Format values for display (always show at least 2 digits)
-    formatTimeDisplay(timerData);
-    
-    // Store current values for next comparison
-    previousValues = {
-      years: timerData.years || 0,
-      months: timerData.months || 0,
-      days: timerData.days || 0,
-      hours: timerData.hours || 0,
-      minutes: timerData.minutes || 0,
-      seconds: timerData.seconds || 0
-    };
-    
-    // Handle visibility of year/month containers based on timer type
-    // Only show years and months for life timers, or if they have non-zero values
-    const timerType = document.querySelector('input[name="timer-type"]:checked')?.value || 'daily';
-    
-    // If we have the year container, decide whether to show it
-    if (yearsContainer) {
-      const shouldShowYears = timerType === 'life' || timerData.years > 0;
-      yearsContainer.classList.toggle('hidden', !shouldShowYears);
-      yearsContainer.style.display = shouldShowYears ? 'flex' : 'none';
-    }
-    
-    // If we have the month container, decide whether to show it
-    if (monthsContainer) {
-      const shouldShowMonths = timerType === 'life' || timerType === 'birthday' || 
-                              timerData.months > 0 || timerData.years > 0;
-      monthsContainer.classList.toggle('hidden', !shouldShowMonths);
-      monthsContainer.style.display = shouldShowMonths ? 'flex' : 'none';
-    }
-    
-    // Make sure countdown digits wrapper is visible
-    const countdownValue = document.getElementById('countdown-value');
-    if (countdownValue) {
-      countdownValue.style.display = 'flex';
-      countdownValue.style.visibility = 'visible';
-      countdownValue.style.opacity = '1';
-    }
-  }
-  
-  /**
-   * Format time display values to always have at least 2 digits
-   * @param {Object} timerData - Timer calculation results
-   */
-  function formatTimeDisplay(timerData) {
-    // Make sure we have leading zeros for display values
-    const formatItems = [
-      { element: yearsValue, value: timerData.years },
-      { element: monthsValue, value: timerData.months },
-      { element: daysValue, value: timerData.days },
-      { element: hoursValue, value: timerData.hours },
-      { element: minutesValue, value: timerData.minutes },
-      { element: secondsValue, value: timerData.seconds }
-    ];
-    
-    formatItems.forEach(item => {
-      if (!item.element) return;
-      
-      // Format as 2-digit number
-      let displayValue = String(item.value || 0).padStart(2, '0');
-      
-      // If over 99, just show the actual number
-      if (item.value > 99) {
-        displayValue = String(item.value);
-      }
-      
-      item.element.textContent = displayValue;
-    });
-  }
-  
-  /**
-   * Update a single digit with smooth animation
-   * @param {HTMLElement} element - The element to update
-   * @param {number} newValue - The new value to display
-   * @param {boolean} animate - Whether to animate the transition
-   */
-  function updateDigitWithAnimation(element, newValue, animate = true) {
-    if (!element) {
-      console.error('Digit element not found for animation');
-      return;
-    }
-    
-    // Format the value with proper leading zeros
-    let displayValue = String(newValue || 0).padStart(2, '0');
-    
-    // If the value is over 99, just display the actual number
-    if (newValue > 99) {
-      displayValue = String(newValue);
-    }
-    
-    // Set the value directly if not animating
-    if (!animate) {
-      element.textContent = displayValue;
-      return;
-    }
-    
+  function updateDocumentTitle(timerData, timerType) {
     try {
-      // Try to use anime.js if available
-      if (typeof anime !== 'undefined') {
-        // Add class for animation
-        element.classList.add('updating');
-        
-        // Fade out
-        anime({
-          targets: element,
-          opacity: [1, 0],
-          translateY: [0, -10],
-          easing: 'easeInQuad',
-          duration: 150,
-          complete: () => {
-            // Update digit
-            element.textContent = displayValue;
-            
-            // Fade in
-            anime({
-              targets: element,
-              opacity: [0, 1],
-              translateY: [10, 0],
-              easing: 'easeOutQuad',
-              duration: 150,
-              complete: () => {
-                element.classList.remove('updating');
-              }
-            });
+      let title = '';
+      
+      // Create a compact display for the time left based on timer type
+      switch (timerType) {
+        case 'life':
+          if (timerData.years > 0) {
+            title = `${timerData.years}y ${timerData.months}m ${timerData.days}d - Life Timer`;
+          } else if (timerData.months > 0) {
+            title = `${timerData.months}m ${timerData.days}d ${timerData.hours}h - Life Timer`;
+          } else {
+            title = `${timerData.days}d ${timerData.hours}h ${timerData.minutes}m - Life Timer`;
           }
-        });
-      } else {
-        // Fallback animation using CSS transitions
-        element.style.transition = 'opacity 0.15s, transform 0.15s';
-        element.style.opacity = '0';
-        element.style.transform = 'translateY(-10px)';
-        
-        setTimeout(() => {
-          element.textContent = displayValue;
-          element.style.transform = 'translateY(10px)';
+          break;
           
-          // Small delay before showing to ensure value is updated
-          setTimeout(() => {
-            element.style.opacity = '1';
-            element.style.transform = 'translateY(0)';
-          }, 50);
-        }, 150);
+        case 'birthday':
+          if (timerData.months > 0) {
+            title = `${timerData.months}m ${timerData.days}d - Birthday Timer`;
+          } else if (timerData.days > 0) {
+            title = `${timerData.days}d ${timerData.hours}h - Birthday Timer`;
+          } else {
+            title = `${timerData.hours}h ${timerData.minutes}m ${timerData.seconds}s - Birthday Timer`;
+          }
+          break;
+          
+        case 'daily':
+        default:
+          title = `${timerData.hours}h ${timerData.minutes}m ${timerData.seconds}s - Daily Timer`;
       }
+      
+      document.title = title;
     } catch (error) {
-      // If animation fails, just update directly
-      console.error('Animation failed, updating directly:', error);
-      element.textContent = displayValue;
-    }
-  }
-  
-  /**
-   * Update progress visualizations (bar, seek bar and background)
-   * @param {number} percentage - Progress percentage (0-100)
-   * @param {string} timerType - Type of timer
-   */
-  function updateProgressVisualization(percentage, timerType) {
-    // Ensure percentage is valid
-    const validPercentage = Math.max(0, Math.min(100, percentage));
-    
-    // Update progress bar width with smooth animation
-    progressBar.style.width = `${validPercentage}%`;
-    
-    // Update seek bar
-    updateSeekBar(validPercentage);
-    
-    // Update background gradient based on timer type
-    updateBackgroundGradient(validPercentage, timerType);
-  }
-  
-  /**
-   * Update the seek bar to reflect elapsed time
-   * @param {number} percentage - Progress percentage (0-100)
-   */
-  function updateSeekBar(percentage) {
-    // Validate percentage
-    const validPercent = Math.max(0, Math.min(100, percentage));
-    
-    if (!seekBarFill || !seekBarHandle) return;
-    
-    // Use anime.js if available
-    if (typeof anime !== 'undefined') {
-      try {
-        // Cancel any ongoing animation
-        if (seekBarAnimation) {
-          seekBarAnimation.pause();
-        }
-        
-        // Create new animation
-        seekBarAnimation = anime({
-          targets: [seekBarFill],
-          width: validPercent + '%',
-          easing: 'easeOutExpo',
-          duration: 800
-        });
-        
-        // Separate animation for handle (smoother)
-        anime({
-          targets: seekBarHandle,
-          left: validPercent + '%',
-          easing: 'easeOutExpo',
-          duration: 800
-        });
-      } catch (e) {
-        // Direct fallback
-        seekBarFill.style.width = validPercent + '%';
-        seekBarHandle.style.left = validPercent + '%';
-      }
-    } else {
-      // Direct style updates without animation
-      seekBarFill.style.width = validPercent + '%';
-      seekBarHandle.style.left = validPercent + '%';
-    }
-  }
-  
-  /**
-   * Update the background gradient based on progress
-   * @param {number} percentage - Progress percentage (0-100)
-   * @param {string} timerType - Type of timer
-   */
-  function updateBackgroundGradient(percentage, timerType) {
-    // Different color schemes for different timer types
-    let startColor, endColor;
-    
-    switch (timerType) {
-      case TimerTypes.LIFE:
-        // Blue to purple gradient (Apple-inspired)
-        startColor = `hsl(210, 100%, ${70 - percentage * 0.2}%)`;
-        endColor = `hsl(280, 100%, ${60 - percentage * 0.2}%)`;
-        break;
-      
-      case TimerTypes.BIRTHDAY:
-        // Green to yellow gradient
-        startColor = `hsl(120, 100%, ${65 - percentage * 0.2}%)`;
-        endColor = `hsl(50, 100%, ${65 - percentage * 0.2}%)`;
-        break;
-      
-      case TimerTypes.DAILY:
-        // Blue to orange gradient
-        startColor = `hsl(210, 100%, ${70 - percentage * 0.2}%)`;
-        endColor = `hsl(20, 100%, ${65 - percentage * 0.2}%)`;
-        break;
-      
-      default:
-        startColor = 'var(--accent-color)';
-        endColor = 'var(--accent-purple)';
-    }
-    
-    // Update background gradient with a more prominent effect
-    progressBackground.style.background = `radial-gradient(circle at center, ${startColor} 0%, transparent 70%)`;
-    
-    // Adjust opacity based on progress (more visible as time progresses)
-    progressBackground.style.opacity = 0.07 + (percentage / 500);
-  }
-  
-  /**
-   * Show countdown message
-   * @param {string} message - Message to display
-   * @param {boolean} isSuccess - Whether to style as success
-   */
-  function showCountdownMessage(message, isSuccess = false) {
-    messageText.textContent = message;
-    
-    // Only animate if the message was previously hidden
-    const wasHidden = countdownMessage.classList.contains('hidden');
-    
-    countdownMessage.classList.remove('hidden');
-    countdownMessage.classList.toggle('success', isSuccess);
-    countdownMessage.classList.toggle('warning', !isSuccess);
-    
-    if (wasHidden) {
-      anime({
-        targets: countdownMessage,
-        opacity: [0, 1],
-        translateY: [10, 0],
-        easing: 'easeOutQuad',
-        duration: 500
-      });
-    }
-  }
-  
-  /**
-   * Hide countdown message
-   */
-  function hideCountdownMessage() {
-    if (!countdownMessage.classList.contains('hidden')) {
-      anime({
-        targets: countdownMessage,
-        opacity: [1, 0],
-        translateY: [0, 10],
-        easing: 'easeInQuad',
-        duration: 500,
-        complete: () => {
-          countdownMessage.classList.add('hidden');
-        }
-      });
+      console.error('Error updating document title:', error);
+      // Fallback to default title
+      document.title = 'Countdown Timer';
     }
   }
   
@@ -1665,15 +1563,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Critical error in input visibility fallback:', e);
       }
     }
-  }
-  
-  // Fallback when storage is unavailable
-  function handleStartupWithoutStorage() {
-    if (setupScreen && timerScreen) {
-      setupScreen.classList.remove('hidden');
-      timerScreen.classList.add('hidden');
-    }
-    hideLoading();
   }
   
   // Initialize the app

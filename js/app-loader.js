@@ -21,6 +21,14 @@ window.StorageKeys = {
   SETUP_COMPLETED: 'setupCompleted'
 };
 
+// Track loaded scripts
+window.LOADED_MODULES = {
+  anime: false,
+  storage: false,
+  timerCalculations: false,
+  appInitialized: false
+};
+
 // Define a global anime fallback for when anime.js fails to load
 window.anime = window.anime || function(params) {
   console.warn('Using fallback anime function');
@@ -100,145 +108,223 @@ window.anime = window.anime || function(params) {
 };
 
 // Error tracking and fallbacks
-window.appErrors = [];
-window.addEventListener('error', function(event) {
-  window.appErrors.push({
-    message: event.message,
-    source: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-    error: event.error
-  });
-  console.error('Caught error:', event);
-});
+let CRITICAL_ERROR = false;
+let ERROR_MESSAGE = '';
 
-// Safe script loading function
-function loadScript(src, fallbackMessage, callback) {
-  console.log('Loading script:', src);
-  var script = document.createElement('script');
-  script.src = src;
-  script.async = true;
+// Function to show error message in the DOM
+function showErrorMessage(message, isRecoverable = false) {
+  console.error('App Error:', message);
+  ERROR_MESSAGE = message;
+  CRITICAL_ERROR = !isRecoverable;
   
+  const errorContainer = document.getElementById('error-container');
+  if (errorContainer) {
+    const errorMessage = document.getElementById('error-message');
+    if (errorMessage) {
+      errorMessage.textContent = message;
+    }
+    errorContainer.classList.remove('hidden');
+  } else {
+    // Create a fallback error display if container not found
+    const errorDiv = document.createElement('div');
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.top = '0';
+    errorDiv.style.left = '0';
+    errorDiv.style.width = '100%';
+    errorDiv.style.padding = '20px';
+    errorDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+    errorDiv.style.color = 'white';
+    errorDiv.style.textAlign = 'center';
+    errorDiv.style.zIndex = '9999';
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+  }
+}
+
+// Function to load a script with proper error handling
+function loadScript(src, errorMessage, callback) {
+  if (CRITICAL_ERROR) {
+    console.warn('Skipping script load due to previous critical error:', src);
+    if (callback) callback(false);
+    return;
+  }
+  
+  console.log('Loading script:', src);
+  
+  // Check if script is already loaded
+  const existingScript = document.querySelector(`script[src="${src}"]`);
+  if (existingScript) {
+    console.log('Script already loaded:', src);
+    if (callback) callback(true);
+    return;
+  }
+  
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = src;
+  script.async = false; // Load in order
+  
+  // Define what happens on success
   script.onload = function() {
-    console.log('Loaded script:', src);
+    console.log('Script loaded successfully:', src);
+    
+    // Track specific module loading status
+    if (src.includes('anime.min.js')) {
+      window.LOADED_MODULES.anime = true;
+    } else if (src.includes('storage.js')) {
+      window.LOADED_MODULES.storage = true;
+    } else if (src.includes('timerCalculations.js')) {
+      window.LOADED_MODULES.timerCalculations = true;
+    } else if (src.includes('newtab.js')) {
+      window.LOADED_MODULES.appInitialized = true;
+    }
+    
     if (callback) callback(true);
   };
   
+  // Define what happens on error
   script.onerror = function() {
     console.error('Failed to load script:', src);
-    window.appErrors.push({
-      message: 'Failed to load script: ' + src,
-      source: src
-    });
-    if (fallbackMessage) {
-      console.warn(fallbackMessage);
+    
+    if (src.includes('anime.min.js')) {
+      // Non-critical, continue without animation
+      console.warn('Animation library failed to load, using fallbacks');
+      if (callback) callback(true); // Continue despite error
+    } else {
+      showErrorMessage(errorMessage || `Failed to load ${src}`, src.includes('test-helpers.js'));
+      
+      // For critical scripts, ensure the failure is tracked
+      if (src.includes('storage.js')) {
+        window.LOADED_MODULES.storage = false;
+      } else if (src.includes('timerCalculations.js')) {
+        window.LOADED_MODULES.timerCalculations = false;
+      }
+      
+      if (callback) callback(false);
     }
-    if (callback) callback(false);
   };
   
+  // Add the script to the page
   document.head.appendChild(script);
 }
 
-// Show error message
-function showErrorMessage(message) {
-  var errorContainer = document.getElementById('error-container');
-  var errorMessage = document.getElementById('error-message');
-  var retryButton = document.getElementById('retry-button');
-  var resetButton = document.getElementById('reset-button');
-  
-  if (errorContainer && errorMessage) {
-    errorMessage.textContent = message || 'An unknown error occurred.';
-    errorContainer.classList.remove('hidden');
-    
-    // Hide loading overlay if visible
-    var loadingOverlay = document.getElementById('loading-overlay');
-    if (loadingOverlay) {
-      loadingOverlay.classList.add('hidden');
-    }
-    
-    // Setup retry button
-    if (retryButton) {
-      retryButton.addEventListener('click', function() {
-        location.reload();
-      });
-    }
-    
-    // Setup reset button
-    if (resetButton) {
-      resetButton.addEventListener('click', function() {
-        // Try to clear localStorage as last resort
-        try {
-          for (var key in localStorage) {
-            if (key.startsWith('timer') || key === 'setupCompleted') {
-              localStorage.removeItem(key);
-            }
-          }
-        } catch (e) {
-          console.error('Failed to clear localStorage:', e);
-        }
-        location.reload();
-      });
-    }
-  }
-}
-
-// Function to safely load our app modules in order
-function loadAppModules() {
-  // Font loading fallback
-  if (!document.fonts || !document.fonts.check('1em "SF Pro Display"')) {
-    console.warn('SF Pro Display font not loaded, using system fonts');
-    document.body.classList.add('font-fallback');
+// Add event listeners for error recovery buttons if they exist
+document.addEventListener('DOMContentLoaded', function() {
+  const retryButton = document.getElementById('retry-button');
+  if (retryButton) {
+    retryButton.addEventListener('click', function() {
+      console.log('Retry button clicked, reloading app');
+      location.reload();
+    });
   }
   
-  // First load anime.js, then load other dependencies
-  loadScript('js/anime.min.js', 'Using CSS fallbacks for animations', function(animeLoaded) {
-    if (animeLoaded) {
-      console.log('Anime.js loaded successfully');
-    } else {
-      console.warn('Failed to load anime.js, will use fallback animations');
-    }
-    
-    // Load modules in correct dependency order
-    loadScript('js/storage.js', 'Storage module failed to load', function(success) {
-      if (success) {
-        console.log('Storage module loaded successfully');
-        window.StorageManager = StorageManager;
-        
-        loadScript('js/timerCalculations.js', 'Timer calculations module failed to load', function(success) {
-          if (success) {
-            console.log('Timer calculations module loaded successfully');
-            window.TimerCalculator = TimerCalculator;
-            
-            // Load test helpers in debug mode
-            if (window.DEBUG_MODE) {
-              loadScript('js/test-helpers.js', 'Test helpers failed to load');
-            }
-            
-            loadScript('js/newtab.js', 'App initialization failed', function(success) {
-              if (!success) {
-                showErrorMessage('Failed to load the application. Please try reloading the page.');
-              } else {
-                console.log('App initialized successfully');
-                
-                // Run tests in debug mode
-                if (window.DEBUG_MODE && window.runTests) {
-                  setTimeout(window.runTests, 2000);
-                }
-              }
-            });
-          } else {
-            showErrorMessage('Failed to load timer calculations. Please try reloading the page.');
-          }
+  const resetButton = document.getElementById('reset-button');
+  if (resetButton) {
+    resetButton.addEventListener('click', function() {
+      console.log('Reset button clicked, clearing storage and reloading');
+      if (chrome && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.clear(function() {
+          console.log('Storage cleared');
+          location.reload();
         });
       } else {
-        showErrorMessage('Failed to load storage module. Please try reloading the page.');
+        // Fallback to localStorage if chrome.storage is not available
+        localStorage.clear();
+        location.reload();
       }
     });
-  });
+  }
+});
+
+// Function to check module loading status
+function checkModulesLoaded() {
+  return {
+    anime: window.LOADED_MODULES.anime,
+    storage: window.LOADED_MODULES.storage,
+    timerCalculations: window.LOADED_MODULES.timerCalculations,
+    appInitialized: window.LOADED_MODULES.appInitialized,
+    allCriticalModulesLoaded: window.LOADED_MODULES.storage && window.LOADED_MODULES.timerCalculations
+  };
 }
 
-// Start loading process when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM content loaded, starting app initialization');
-  loadAppModules();
-}); 
+// Function to load all necessary modules
+function loadAppModules() {
+  // Font loading fallback
+  console.log('Starting app module loading sequence');
+  
+  // Check for potential storage permission issues
+  if (chrome && chrome.storage && chrome.storage.sync) {
+    chrome.storage.sync.get(null, function(items) {
+      if (chrome.runtime.lastError) {
+        console.warn('Storage permission issue detected:', chrome.runtime.lastError);
+        showErrorMessage('Storage permission issue. You may need to reset the extension.', true);
+      } else {
+        console.log('Storage permission OK');
+      }
+    });
+  }
+  
+  // Use try-catch to handle unexpected errors during loading
+  try {
+    // Start loading modules in sequence
+    loadScript('js/anime.min.js', 'Using CSS fallbacks for animations', function(animeLoaded) {
+      // Anime.js is optional, continue loading critical modules
+      console.log('Anime library status:', animeLoaded ? 'loaded' : 'using fallback');
+      
+      loadScript('js/storage.js', 'Storage module failed to load', function(storageLoaded) {
+        if (storageLoaded) {
+          console.log('Storage module loaded successfully');
+          window.StorageManager = StorageManager;
+          
+          loadScript('js/timerCalculations.js', 'Timer calculations module failed to load', function(calculationsLoaded) {
+            if (calculationsLoaded) {
+              console.log('Timer calculations module loaded successfully');
+              window.TimerCalculator = TimerCalculator;
+              
+              // Load test helpers in debug mode
+              if (window.DEBUG_MODE) {
+                loadScript('js/test-helpers.js', 'Test helpers failed to load');
+              }
+              
+              // Load the main application with a slight delay to ensure everything is ready
+              setTimeout(function() {
+                loadScript('js/newtab.js', 'App initialization failed', function(success) {
+                  if (!success) {
+                    showErrorMessage('Failed to load the application. Please try reloading the page.');
+                  } else {
+                    console.log('App initialized successfully');
+                    
+                    // Run tests in debug mode
+                    if (window.DEBUG_MODE && window.runTests) {
+                      setTimeout(window.runTests, 2000);
+                    }
+                  }
+                });
+              }, 100);
+            } else {
+              showErrorMessage('Failed to load timer calculations. Please try reloading the page.');
+            }
+          });
+        } else {
+          showErrorMessage('Failed to load storage module. Please try reloading the page.');
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Critical error during module loading:', error);
+    showErrorMessage('Critical loading error: ' + error.message);
+  }
+}
+
+// Add window error handling
+window.onerror = function(message, source, lineno, colno, error) {
+  console.error('Global error:', message, 'at', source, lineno, colno);
+  if (!CRITICAL_ERROR) {
+    // Only show the first critical error to avoid overwhelming the user
+    showErrorMessage('An error occurred: ' + message, true);
+  }
+  return false; // Let other error handlers run
+};
+
+// Start loading modules
+loadAppModules(); 

@@ -1,36 +1,36 @@
 /* Base Styles */
 :root {
-  /* Apple-inspired dark theme colors */
-  --bg-primary: #000000;
-  --bg-secondary: #171717;
-  --bg-gradient-start: #1a1a1a;
-  --bg-gradient-end: #000000;
+  /* Dark theme colors */
+  --bg-primary: #121212;
+  --bg-secondary: #1e1e1e;
+  --bg-gradient-start: #171717;
+  --bg-gradient-end: #0f0f0f;
   --text-primary: #ffffff;
-  --text-secondary: #a1a1a6;
-  --accent-color: #0A84FF;
+  --text-secondary: #b0b0b0;
+  --accent-color: #7c4dff;
   --accent-orange: #FF9500;
   --accent-yellow: #FFD60A;
   --accent-green: #30D158;
   --accent-red: #FF453A;
   --accent-purple: #BF5AF2;
-  --border-color: #38383A;
+  --border-color: #2c2c2c;
   --shadow-color: rgba(0, 0, 0, 0.5);
-  --input-bg: #1C1C1E;
-  --progress-bg: #2C2C2E;
-  --message-success: #30D158;
-  --message-warning: #FFD60A;
+  --input-bg: #2c2c2c;
+  --progress-bg: #2c2c2c;
+  --message-success: #4caf50;
+  --message-warning: #ffca28;
   
   /* Animation durations */
   --transition-speed: 0.3s;
   --animation-speed: 0.5s;
   
-  /* Progress colors */
-  --progress-start: #0A84FF;
-  --progress-end: #5E5CE6;
+  /* Progress colors - vibrant gradients */
+  --progress-start: #7c4dff;
+  --progress-end: #00bcd4;
   
-  /* Seek bar colors */
-  --seek-bar-start: #FF9500;
-  --seek-bar-end: #FFCC00;
+  /* Seek bar colors - vibrant gradient */
+  --seek-bar-start: #ff4081;
+  --seek-bar-end: #7c4dff;
   --seek-bar-bg: rgba(44, 44, 46, 0.5);
   
   /* Blur effects */
@@ -39,8 +39,22 @@
   
   /* Error colors */
   --error-bg: rgba(255, 69, 58, 0.1);
-  --error-text: #FF453A;
+  --error-text: #ff5252;
   --error-border: rgba(255, 69, 58, 0.3);
+  
+  /* Windows 11 dark theme */
+  --win11-background: rgba(32, 32, 32, 0.85);
+  --win11-accent: #60cdff;
+  --win11-text: #ffffff;
+  --win11-card-bg: rgba(45, 45, 45, 0.7);
+  --win11-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --win11-border: 1px solid rgba(255, 255, 255, 0.08);
+  --win11-border-radius: 8px;
+  
+  /* Windows 11 Mica effect */
+  --win11-mica-bg: rgba(45, 45, 45, 0.85);
+  --win11-mica-dark-bg: rgba(32, 32, 32, 0.85);
+  --win11-acrylic-bg: rgba(45, 45, 45, 0.6);
 }
 
 @media (prefers-color-scheme: light) {
@@ -105,7 +119,7 @@ body.font-fallback {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Progress Background */
+/* Progress Background with animated gradient */
 .progress-background {
   position: fixed;
   top: 0;
@@ -114,8 +128,24 @@ body.font-fallback {
   height: 100%;
   z-index: -1;
   background: radial-gradient(circle at center, var(--progress-start) 0%, transparent 70%);
-  opacity: 0.07;
+  opacity: 0.1;
   transition: all var(--transition-speed) ease;
+  animation: pulseBackground 10s infinite alternate;
+}
+
+@keyframes pulseBackground {
+  0% {
+    opacity: 0.05;
+    background-position: 0% 50%;
+  }
+  50% {
+    opacity: 0.1;
+    background-position: 100% 50%;
+  }
+  100% {
+    opacity: 0.05;
+    background-position: 0% 50%;
+  }
 }
 
 #app {
@@ -519,12 +549,11 @@ button:active {
 
 /* Timer Screen Styles */
 .timer-container {
-  background-color: rgba(23, 23, 23, 0.7);
+  background-color: rgba(30, 30, 30, 0.7);
   border-radius: 24px;
-  padding: 2.5rem;
+  padding: 2rem;
   box-shadow: 0 20px 40px var(--shadow-color);
   text-align: center;
-  animation: fadeIn var(--animation-speed) ease;
   width: 100%;
   backdrop-filter: blur(var(--blur-amount));
   -webkit-backdrop-filter: blur(var(--blur-amount));
@@ -576,6 +605,7 @@ button:active {
   background-color: var(--seek-bar-bg);
   border-radius: 4px;
   overflow: hidden;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
 .seek-bar-fill {
@@ -587,6 +617,7 @@ button:active {
   background: linear-gradient(to right, var(--seek-bar-start), var(--seek-bar-end));
   border-radius: 4px;
   transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 10px var(--seek-bar-start);
 }
 
 .seek-bar-handle {
@@ -598,7 +629,7 @@ button:active {
   height: 16px;
   background: white;
   border-radius: 50%;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
   z-index: 2;
   transition: left 1s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -607,21 +638,57 @@ button:active {
   margin-bottom: 2.5rem;
 }
 
-/* Horizontal Layout Timer - Apple Style */
-.countdown-container.horizontal-layout {
+/* Single row horizontal countdown display */
+.countdown-digits {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin: 0 auto;
+  background-color: rgba(30, 30, 30, 0.5);
+  padding: 1rem;
+  border-radius: 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  scrollbar-width: none; /* Firefox */
+}
+
+.countdown-digits::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Edge */
+}
+
+/* Time units for horizontal layout */
+.time-unit {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 1.5rem;
-  animation: slideUp var(--animation-speed) ease-out;
+  padding: 0 0.5rem;
+  position: relative;
+  min-width: 100px;
+  flex-shrink: 0;
+  background: rgba(50, 50, 50, 0.5);
+  border-radius: 12px;
+  margin: 0 2px;
+  padding: 10px 5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  animation: fadeInTime 0.5s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s ease, background-color 0.3s ease;
 }
 
-@keyframes slideUp {
+.time-unit:hover {
+  transform: translateY(-5px);
+  background-color: rgba(60, 60, 60, 0.7);
+}
+
+@keyframes fadeInTime {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -629,58 +696,39 @@ button:active {
   }
 }
 
-.countdown-digits {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  width: 90%; /* Adjusted to 90% as requested */
-  flex-wrap: wrap;
-  margin: 0 auto;
-  gap: 5px;
-  background-color: rgba(30, 30, 30, 0.4);
-  padding: 1.5rem;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.time-unit {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 0.7rem;
-  position: relative;
-}
-
-/* Move labels above digits */
-.time-unit {
-  flex-direction: column-reverse;
-}
-
 .time-separator {
-  font-size: 2.8rem;
+  font-size: 2.5rem;
   font-weight: 300;
-  color: var(--text-secondary);
-  margin: 0 0.1rem;
-  opacity: 0.5;
+  color: var(--accent-color);
+  margin: 0 2px;
   align-self: center;
-  transform: translateY(-5px);
+  opacity: 0.7;
+  text-shadow: 0 0 10px var(--accent-color);
+  animation: pulseSeparator 1.5s infinite;
+}
+
+@keyframes pulseSeparator {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .digit-value {
-  font-size: 4rem;
+  font-size: 3.5rem;
   font-weight: 600;
   color: var(--text-primary);
-  min-width: 2.5ch;
   text-align: center;
-  margin: 0.2rem 0;
   position: relative;
-  overflow: hidden;
-  transition: color var(--transition-speed) ease;
   font-variant-numeric: tabular-nums;
   letter-spacing: -1px;
+  background: linear-gradient(to right, var(--text-primary), var(--accent-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 2px 10px rgba(124, 77, 255, 0.2);
+  transition: all 0.3s ease;
 }
 
 .time-label {
@@ -689,158 +737,100 @@ button:active {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin-bottom: 0.5rem;
+  margin-top: 0.5rem;
+  opacity: 0.8;
 }
 
-/* Progress bar - Apple style */
-.progress-bar-container {
-  width: 80%;
-  height: 6px;
-  background-color: var(--progress-bg);
-  border-radius: 3px;
-  margin: 2.5rem auto 0;
-  overflow: hidden;
-  position: relative;
-  opacity: 0.5; /* Reduced opacity as it's now secondary to the seek bar */
-}
-
-.progress-bar {
-  height: 100%;
-  width: 0%; /* Will be set dynamically via JavaScript */
+/* Enhanced animations for timer title */
+#timer-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
   background: linear-gradient(to right, var(--accent-color), var(--accent-purple));
-  border-radius: 3px;
-  transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  overflow: hidden;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmerText 3s infinite;
 }
 
-.progress-bar::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, 
-    rgba(255,255,255,0) 0%, 
-    rgba(255,255,255,0.1) 50%, 
-    rgba(255,255,255,0) 100%);
-  animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(100%);
-  }
-}
-
-#countdown-message {
-  margin-top: 1.8rem;
-  padding: 1.2rem;
-  border-radius: 12px;
-  background-color: rgba(30, 30, 30, 0.7);
-  animation: pulse 2s infinite;
-  max-width: 90%;
-  margin-left: auto;
-  margin-right: auto;
-  backdrop-filter: blur(var(--blur-amount));
-  -webkit-backdrop-filter: blur(var(--blur-amount));
-}
-
-#countdown-message.success {
-  background-color: rgba(48, 209, 88, 0.1);
-  color: var(--message-success);
-}
-
-#countdown-message.warning {
-  background-color: rgba(255, 214, 10, 0.1);
-  color: var(--message-warning);
-}
-
-@keyframes pulse {
+@keyframes shimmerText {
   0% {
-    opacity: 0.8;
-  }
-  50% {
-    opacity: 1;
+    background-position: -100px;
   }
   100% {
-    opacity: 0.8;
+    background-position: 200px;
   }
 }
 
-.timer-footer {
-  color: var(--text-secondary);
-  margin-top: 2rem;
-}
-
-#timer-description {
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-  font-weight: 500;
-}
-
+/* Motivation quote styling */
 #motivation-quote {
   font-style: italic;
   font-size: 1rem;
-  opacity: 0.8;
   max-width: 90%;
   margin: 0 auto;
   line-height: 1.6;
+  color: var(--text-secondary);
+  border-left: 3px solid var(--accent-color);
+  padding-left: 1rem;
+  margin-top: 1rem;
+  text-align: left;
+  animation: fadeQuote 1s ease-in;
 }
 
-/* Responsive Adjustments */
+@keyframes fadeQuote {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive Adjustments for single-row layout */
 @media (max-width: 1200px) {
-  .countdown-digits {
-    gap: 3px;
-  }
-  
-  .digit-value {
-    font-size: 3.5rem;
-    min-width: 2.5ch;
-  }
-  
-  .time-separator {
-    font-size: 2.5rem;
-  }
-  
-  .time-unit {
-    padding: 0 0.5rem;
-  }
-}
-
-@media (max-width: 992px) {
   .digit-value {
     font-size: 3rem;
-    min-width: 2.2ch;
   }
   
   .time-separator {
     font-size: 2.2rem;
   }
   
-  .time-label {
-    font-size: 0.75rem;
+  .time-unit {
+    min-width: 90px;
+    padding: 8px 4px;
+  }
+}
+
+@media (max-width: 992px) {
+  .digit-value {
+    font-size: 2.5rem;
+  }
+  
+  .time-separator {
+    font-size: 2rem;
+    margin: 0 1px;
+  }
+  
+  .time-unit {
+    min-width: 80px;
   }
 }
 
 @media (max-width: 768px) {
   .countdown-digits {
-    width: 100%;
-    gap: 2px;
-    padding: 1rem;
+    padding: 0.8rem;
+    overflow-x: auto;
   }
   
   .digit-value {
-    font-size: 2.5rem;
-    min-width: 2ch;
+    font-size: 2rem;
   }
   
   .time-separator {
-    font-size: 2rem;
+    font-size: 1.8rem;
     margin: 0;
   }
   
@@ -848,25 +838,19 @@ button:active {
     font-size: 0.7rem;
   }
   
-  .seek-bar-container,
-  .progress-bar-container {
-    width: 95%;
-  }
-  
   .time-unit {
-    padding: 0 0.3rem;
+    min-width: 70px;
+    padding: 6px 3px;
   }
 }
 
 @media (max-width: 576px) {
-  .setup-container, .timer-container {
-    padding: 1.5rem;
-    border-radius: 16px;
+  .timer-container {
+    padding: 1.2rem;
   }
   
   .digit-value {
     font-size: 1.8rem;
-    min-width: 1.8ch;
   }
   
   .time-separator {
@@ -875,12 +859,11 @@ button:active {
   
   .time-label {
     font-size: 0.6rem;
-    margin-bottom: 0.2rem;
   }
   
-  .countdown-digits {
-    padding: 0.8rem;
-    border-radius: 12px;
+  .time-unit {
+    min-width: 60px;
+    padding: 5px 2px;
   }
 }
 
@@ -916,4 +899,180 @@ button:active {
 
 body.loading {
   overflow: hidden;
+}
+
+/**
+ * Windows 11 Mica effect - translucent layered background with blur
+ */
+.win11-mica {
+  backdrop-filter: blur(20px) saturate(180%);
+  background-color: var(--win11-mica-bg);
+  border-radius: var(--win11-border-radius);
+  box-shadow: var(--win11-shadow);
+  border: var(--win11-border);
+}
+
+/**
+ * Windows 11 Acrylic effect - more transparent than Mica
+ */
+.win11-acrylic {
+  backdrop-filter: blur(40px) saturate(125%);
+  background-color: var(--win11-acrylic-bg);
+  border-radius: var(--win11-border-radius);
+  box-shadow: var(--win11-shadow);
+  border: var(--win11-border);
+}
+
+/**
+ * Fix for timer screen display
+ * Ensure timer screen is visible by default in certain cases
+ */
+#timer-screen {
+  /* Remove .hidden class from timer-screen in HTML to show by default */
+  visibility: visible;
+  opacity: 1;
+  z-index: 1;
+}
+
+/**
+ * Apply Windows 11 styling to container elements
+ */
+.setup-container,
+.timer-container,
+.loading-overlay,
+.error-container {
+  backdrop-filter: blur(20px);
+  background-color: var(--win11-card-bg);
+  border-radius: var(--win11-border-radius);
+  border: var(--win11-border);
+  box-shadow: var(--win11-shadow);
+  overflow: hidden;
+}
+
+/**
+ * Windows 11 style button - now with gradient
+ */
+button {
+  border-radius: 4px;
+  background: linear-gradient(45deg, var(--win11-accent), #9c27b0);
+  color: white;
+  font-weight: 500;
+  border: none;
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+button:after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.2), transparent);
+  transition: 0.5s;
+}
+
+button:hover:after {
+  left: 100%;
+}
+
+button:hover {
+  background: linear-gradient(45deg, #9c27b0, var(--win11-accent));
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+button:active {
+  background: linear-gradient(45deg, #7b1fa2, #0078d4);
+  transform: translateY(0);
+}
+
+/**
+ * Windows 11 style inputs with dark mode
+ */
+input[type="date"],
+input[type="number"],
+input[type="text"] {
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 12px;
+  background-color: rgba(0, 0, 0, 0.2);
+  color: var(--win11-text);
+  transition: all 0.2s ease;
+}
+
+input[type="date"]:focus,
+input[type="number"]:focus,
+input[type="text"]:focus {
+  border-color: var(--win11-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(96, 205, 255, 0.25);
+}
+
+/**
+ * Windows 11 style radio buttons
+ */
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  outline: none;
+  margin-right: 10px;
+  position: relative;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+input[type="radio"]:before {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin: 4px;
+  background-color: var(--win11-accent);
+  transform: scale(0);
+  transition: transform 0.15s ease;
+}
+
+input[type="radio"]:checked {
+  border-color: var(--win11-accent);
+}
+
+input[type="radio"]:checked:before {
+  transform: scale(1);
+}
+
+/* Animated time units */
+.time-unit {
+  animation: fadeInUp 0.8s ease-out forwards;
+  opacity: 0;
+  transform: translateY(20px);
+  animation-delay: calc(var(--index, 0) * 0.1s);
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Ensure timer screen is always visible */
+#timer-screen {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Ensure setup screen is hidden by default */
+#setup-screen {
+  display: none !important;
 } 

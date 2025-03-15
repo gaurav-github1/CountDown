@@ -24,323 +24,345 @@ const DEFAULT_SETTINGS = {
 };
 
 /**
- * Storage manager for the extension
+ * Storage Manager for Countdown Timer Extension
+ * Provides an interface for saving and retrieving settings from Chrome storage
  */
+
 class StorageManager {
   constructor() {
-    // Check if chrome.storage is available
-    this.isStorageAvailable = typeof chrome !== 'undefined' && 
-                              chrome.storage && 
-                              chrome.storage.sync;
+    // Define storage keys
+    this.keys = {
+      TIMER_TYPE: 'timerType',
+      BIRTH_DATE: 'birthDate',
+      LIFE_EXPECTANCY: 'lifeExpectancy',
+      SETUP_COMPLETED: 'setupCompleted'
+    };
     
-    if (!this.isStorageAvailable) {
-      console.warn('Chrome storage API not available. Using localStorage instead.');
+    // Default values when no settings are found
+    this.defaults = {
+      [this.keys.TIMER_TYPE]: 'daily',
+      [this.keys.LIFE_EXPECTANCY]: 80,
+      [this.keys.SETUP_COMPLETED]: false
+    };
+    
+    // Validate that chrome.storage is available
+    this.storageAvailable = typeof chrome !== 'undefined' && 
+                          chrome.storage && 
+                          chrome.storage.sync;
+    
+    if (!this.storageAvailable) {
+      console.warn('Chrome storage API not available, using localStorage fallback');
     }
   }
   
   /**
-   * Save to localStorage as fallback
-   * @param {Object} settings - Settings to save
+   * Save a single value to storage
+   * @param {string} key - The key to save
+   * @param {any} value - The value to save
+   * @returns {Promise} - Resolves when saved
    */
-  _saveToLocalStorage(settings) {
-    try {
-      for (const key in settings) {
-        localStorage.setItem(key, JSON.stringify(settings[key]));
-      }
-      console.log('Settings saved to localStorage:', settings);
-      return true;
-    } catch (error) {
-      console.error('Error saving to localStorage:', error);
-      return false;
-    }
-  }
-  
-  /**
-   * Get from localStorage as fallback
-   * @param {string|null} key - Key to get (null for all settings)
-   * @returns {Object} Settings object
-   */
-  _getFromLocalStorage(key) {
-    try {
-      if (key === null) {
-        // Get all settings
-        const result = {};
-        for (const storageKey of Object.values(StorageKeys)) {
-          const value = localStorage.getItem(storageKey);
-          if (value !== null) {
-            try {
-              result[storageKey] = JSON.parse(value);
-            } catch (e) {
-              result[storageKey] = value;
-            }
-          }
-        }
-        return result;
-      } else if (Array.isArray(key)) {
-        // Get multiple keys
-        const result = {};
-        for (const k of key) {
-          const value = localStorage.getItem(k);
-          if (value !== null) {
-            try {
-              result[k] = JSON.parse(value);
-            } catch (e) {
-              result[k] = value;
-            }
-          }
-        }
-        return result;
-      } else {
-        // Get single key
-        const value = localStorage.getItem(key);
-        return value !== null ? { [key]: JSON.parse(value) } : {};
-      }
-    } catch (error) {
-      console.error('Error reading from localStorage:', error);
-      return {};
-    }
-  }
-  
-  /**
-   * Clear localStorage data for extension
-   */
-  _clearLocalStorage() {
-    try {
-      for (const key of Object.values(StorageKeys)) {
-        localStorage.removeItem(key);
-      }
-      return true;
-    } catch (error) {
-      console.error('Error clearing localStorage:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Save user settings to Chrome storage
-   * @param {Object} settings - Settings object
-   * @returns {Promise} Promise that resolves when settings are saved
-   */
-  saveSettings(settings) {
+  async save(key, value) {
     return new Promise((resolve, reject) => {
-      // Use localStorage if Chrome storage is not available
-      if (!this.isStorageAvailable) {
-        const success = this._saveToLocalStorage(settings);
-        if (success) {
-          resolve();
-        } else {
-          reject(new Error('Failed to save settings to localStorage'));
-        }
-        return;
-      }
-      
-      // Use Chrome storage
       try {
-        chrome.storage.sync.set(settings, () => {
-          if (chrome.runtime.lastError) {
-            console.error('Error saving settings:', chrome.runtime.lastError);
-            // Try localStorage as fallback
-            console.warn('Falling back to localStorage');
-            const success = this._saveToLocalStorage(settings);
-            if (success) {
-              resolve();
+        console.log(`Saving ${key}:`, value);
+        
+        if (this.storageAvailable) {
+          // Use Chrome storage API
+          chrome.storage.sync.set({ [key]: value }, () => {
+            if (chrome.runtime.lastError) {
+              console.error(`Error saving ${key}:`, chrome.runtime.lastError);
+              reject(new Error(`Failed to save ${key}: ${chrome.runtime.lastError.message}`));
             } else {
-              reject(chrome.runtime.lastError);
+              console.log(`${key} saved successfully`);
+              resolve();
             }
-          } else {
-            console.log('Settings saved successfully:', settings);
-            resolve();
-          }
-        });
-      } catch (error) {
-        console.error('Exception while saving settings:', error);
-        // Try localStorage as fallback
-        const success = this._saveToLocalStorage(settings);
-        if (success) {
-          resolve();
+          });
         } else {
-          reject(error);
-        }
-      }
-    });
-  }
-
-  /**
-   * Get all user settings from Chrome storage
-   * @returns {Promise<Object>} Promise that resolves with settings object
-   */
-  getSettings() {
-    return new Promise((resolve, reject) => {
-      // Use localStorage if Chrome storage is not available
-      if (!this.isStorageAvailable) {
-        const settings = this._getFromLocalStorage(null);
-        resolve(settings);
-        return;
-      }
-      
-      // Use Chrome storage
-      try {
-        chrome.storage.sync.get(null, (result) => {
-          if (chrome.runtime.lastError) {
-            console.error('Error getting settings:', chrome.runtime.lastError);
-            // Try localStorage as fallback
-            console.warn('Falling back to localStorage for getting settings');
-            const settings = this._getFromLocalStorage(null);
-            resolve(settings);
-          } else {
-            console.log('Settings retrieved successfully:', result);
-            resolve(result);
+          // Fallback to localStorage
+          try {
+            localStorage.setItem(key, JSON.stringify(value));
+            console.log(`${key} saved to localStorage`);
+            resolve();
+          } catch (err) {
+            console.error(`Error saving ${key} to localStorage:`, err);
+            reject(new Error(`Failed to save ${key} to localStorage`));
           }
-        });
+        }
       } catch (error) {
-        console.error('Exception while getting settings:', error);
-        // Try localStorage as fallback
-        const settings = this._getFromLocalStorage(null);
-        resolve(settings);
+        console.error(`Critical error saving ${key}:`, error);
+        reject(error);
       }
     });
   }
-
+  
   /**
-   * Get a specific setting from Chrome storage
+   * Get a single value from storage
    * @param {string} key - The key to retrieve
-   * @returns {Promise<any>} Promise that resolves with the setting value
+   * @param {any} defaultValue - Default if key not found
+   * @returns {Promise<any>} - Resolves with the value
    */
-  getSetting(key) {
+  async get(key, defaultValue) {
     return new Promise((resolve, reject) => {
-      // Use localStorage if Chrome storage is not available
-      if (!this.isStorageAvailable) {
-        const result = this._getFromLocalStorage(key);
-        resolve(result[key]);
-        return;
-      }
-      
-      // Use Chrome storage
       try {
-        chrome.storage.sync.get([key], (result) => {
-          if (chrome.runtime.lastError) {
-            console.error(`Error getting setting ${key}:`, chrome.runtime.lastError);
-            // Try localStorage as fallback
-            const localResult = this._getFromLocalStorage(key);
-            resolve(localResult[key]);
-          } else {
-            console.log(`Setting ${key} retrieved:`, result[key]);
-            resolve(result[key]);
+        if (this.storageAvailable) {
+          // Use Chrome storage API
+          chrome.storage.sync.get(key, (result) => {
+            if (chrome.runtime.lastError) {
+              console.error(`Error getting ${key}:`, chrome.runtime.lastError);
+              resolve(defaultValue);
+            } else {
+              const value = result[key];
+              console.log(`Retrieved ${key}:`, value !== undefined ? value : defaultValue);
+              resolve(value !== undefined ? value : defaultValue);
+            }
+          });
+        } else {
+          // Fallback to localStorage
+          try {
+            const storedValue = localStorage.getItem(key);
+            
+            if (storedValue !== null) {
+              const parsedValue = JSON.parse(storedValue);
+              console.log(`Retrieved ${key} from localStorage:`, parsedValue);
+              resolve(parsedValue);
+            } else {
+              console.log(`${key} not found in localStorage, using default:`, defaultValue);
+              resolve(defaultValue);
+            }
+          } catch (err) {
+            console.error(`Error getting ${key} from localStorage:`, err);
+            resolve(defaultValue);
           }
-        });
+        }
       } catch (error) {
-        console.error(`Exception while getting setting ${key}:`, error);
-        // Try localStorage as fallback
-        const localResult = this._getFromLocalStorage(key);
-        resolve(localResult[key]);
+        console.error(`Critical error getting ${key}:`, error);
+        resolve(defaultValue);
       }
     });
   }
-
+  
   /**
-   * Check if setup has been completed
-   * @returns {Promise<boolean>} Promise that resolves with setup status
+   * Save multiple settings at once
+   * @param {Object} settings - Object with settings
+   * @returns {Promise} - Resolves when all settings are saved
    */
-  isSetupCompleted() {
-    return this.getSetting(StorageKeys.SETUP_COMPLETED)
-      .then(completed => !!completed)
-      .catch(() => {
-        // Extra fallback - check localStorage directly
-        try {
-          const value = localStorage.getItem(StorageKeys.SETUP_COMPLETED);
-          return value !== null ? JSON.parse(value) : false;
-        } catch (e) {
-          return false;
+  async saveSettings(settings) {
+    return new Promise((resolve, reject) => {
+      console.log('Saving settings:', settings);
+      
+      try {
+        if (this.storageAvailable) {
+          // Use Chrome storage API
+          chrome.storage.sync.set(settings, () => {
+            if (chrome.runtime.lastError) {
+              console.error('Error saving settings:', chrome.runtime.lastError);
+              reject(new Error(`Failed to save settings: ${chrome.runtime.lastError.message}`));
+            } else {
+              console.log('Settings saved successfully');
+              resolve();
+            }
+          });
+        } else {
+          // Fallback to localStorage
+          try {
+            for (const key in settings) {
+              if (settings.hasOwnProperty(key)) {
+                localStorage.setItem(key, JSON.stringify(settings[key]));
+              }
+            }
+            console.log('Settings saved to localStorage');
+            resolve();
+          } catch (err) {
+            console.error('Error saving settings to localStorage:', err);
+            reject(new Error('Failed to save settings to localStorage'));
+          }
         }
-      });
+      } catch (error) {
+        console.error('Critical error saving settings:', error);
+        reject(error);
+      }
+    });
   }
-
+  
   /**
-   * Save the timer type selection
-   * @param {string} timerType - Selected timer type
-   * @returns {Promise} Promise that resolves when timer type is saved
+   * Get all settings
+   * @returns {Promise<Object>} - Resolves with settings object
    */
-  saveTimerType(timerType) {
-    return this.saveSettings({ [StorageKeys.TIMER_TYPE]: timerType });
+  async getSettings() {
+    return new Promise((resolve, reject) => {
+      try {
+        const settingsKeys = [
+          this.keys.TIMER_TYPE,
+          this.keys.BIRTH_DATE,
+          this.keys.LIFE_EXPECTANCY,
+          this.keys.SETUP_COMPLETED
+        ];
+        
+        if (this.storageAvailable) {
+          // Use Chrome storage API
+          chrome.storage.sync.get(settingsKeys, (result) => {
+            if (chrome.runtime.lastError) {
+              console.error('Error getting settings:', chrome.runtime.lastError);
+              // Apply default values with any existing settings
+              const settings = { ...this.defaults };
+              console.log('Using default settings due to error:', settings);
+              resolve(settings);
+            } else {
+              // Merge with defaults to ensure all properties exist
+              const settings = { ...this.defaults, ...result };
+              console.log('Retrieved settings:', settings);
+              resolve(settings);
+            }
+          });
+        } else {
+          // Fallback to localStorage
+          try {
+            const settings = { ...this.defaults };
+            
+            for (const key of settingsKeys) {
+              const storedValue = localStorage.getItem(key);
+              
+              if (storedValue !== null) {
+                settings[key] = JSON.parse(storedValue);
+              }
+            }
+            
+            console.log('Retrieved settings from localStorage:', settings);
+            resolve(settings);
+          } catch (err) {
+            console.error('Error getting settings from localStorage:', err);
+            resolve({ ...this.defaults });
+          }
+        }
+      } catch (error) {
+        console.error('Critical error getting settings:', error);
+        // Even when there's an error, return defaults to keep app running
+        resolve({ ...this.defaults });
+      }
+    });
   }
-
+  
+  /**
+   * Clear all settings
+   * @returns {Promise} - Resolves when settings are cleared
+   */
+  async clearSettings() {
+    return new Promise((resolve, reject) => {
+      try {
+        if (this.storageAvailable) {
+          // Use Chrome storage API
+          chrome.storage.sync.clear(() => {
+            if (chrome.runtime.lastError) {
+              console.error('Error clearing settings:', chrome.runtime.lastError);
+              reject(new Error(`Failed to clear settings: ${chrome.runtime.lastError.message}`));
+            } else {
+              console.log('Settings cleared successfully');
+              resolve();
+            }
+          });
+        } else {
+          // Fallback to localStorage
+          try {
+            const settingsKeys = [
+              this.keys.TIMER_TYPE,
+              this.keys.BIRTH_DATE,
+              this.keys.LIFE_EXPECTANCY,
+              this.keys.SETUP_COMPLETED
+            ];
+            
+            for (const key of settingsKeys) {
+              localStorage.removeItem(key);
+            }
+            
+            console.log('Settings cleared from localStorage');
+            resolve();
+          } catch (err) {
+            console.error('Error clearing localStorage:', err);
+            reject(new Error('Failed to clear localStorage'));
+          }
+        }
+      } catch (error) {
+        console.error('Critical error clearing settings:', error);
+        reject(error);
+      }
+    });
+  }
+  
+  /**
+   * Save timer type
+   * @param {string} timerType - The timer type to save
+   * @returns {Promise} - Resolves when saved
+   */
+  async saveTimerType(timerType) {
+    // Validate timer type
+    const validTypes = ['life', 'birthday', 'daily'];
+    const type = validTypes.includes(timerType) ? timerType : 'daily';
+    
+    return this.save(this.keys.TIMER_TYPE, type);
+  }
+  
+  /**
+   * Get timer type
+   * @returns {Promise<string>} - Resolves with timer type
+   */
+  async getTimerType() {
+    return this.get(this.keys.TIMER_TYPE, this.defaults[this.keys.TIMER_TYPE]);
+  }
+  
   /**
    * Save birth date
-   * @param {string} birthDate - Birth date in ISO format
-   * @returns {Promise} Promise that resolves when birth date is saved
+   * @param {string} birthDate - Birth date in YYYY-MM-DD format
+   * @returns {Promise} - Resolves when saved
    */
-  saveBirthDate(birthDate) {
-    return this.saveSettings({ [StorageKeys.BIRTH_DATE]: birthDate });
+  async saveBirthDate(birthDate) {
+    return this.save(this.keys.BIRTH_DATE, birthDate);
   }
-
+  
+  /**
+   * Get birth date
+   * @returns {Promise<string>} - Resolves with birth date
+   */
+  async getBirthDate() {
+    return this.get(this.keys.BIRTH_DATE, '');
+  }
+  
   /**
    * Save life expectancy
-   * @param {number} years - Life expectancy in years
-   * @returns {Promise} Promise that resolves when life expectancy is saved
+   * @param {number} lifeExpectancy - Life expectancy in years
+   * @returns {Promise} - Resolves when saved
    */
-  saveLifeExpectancy(years) {
-    return this.saveSettings({ [StorageKeys.LIFE_EXPECTANCY]: years });
+  async saveLifeExpectancy(lifeExpectancy) {
+    // Ensure it's a number and has a reasonable value
+    const expectancy = parseInt(lifeExpectancy, 10);
+    const validExpectancy = isNaN(expectancy) || expectancy < 1 ? 
+                          this.defaults[this.keys.LIFE_EXPECTANCY] : 
+                          expectancy;
+    
+    return this.save(this.keys.LIFE_EXPECTANCY, validExpectancy);
   }
-
+  
+  /**
+   * Get life expectancy
+   * @returns {Promise<number>} - Resolves with life expectancy
+   */
+  async getLifeExpectancy() {
+    return this.get(this.keys.LIFE_EXPECTANCY, this.defaults[this.keys.LIFE_EXPECTANCY]);
+  }
+  
   /**
    * Mark setup as completed
-   * @returns {Promise} Promise that resolves when setup status is saved
+   * @returns {Promise} - Resolves when saved
    */
-  completeSetup() {
-    return this.saveSettings({ [StorageKeys.SETUP_COMPLETED]: true });
+  async completeSetup() {
+    return this.save(this.keys.SETUP_COMPLETED, true);
   }
-
+  
   /**
-   * Reset all settings to defaults
-   * @returns {Promise} Promise that resolves when settings are reset
+   * Check if setup is completed
+   * @returns {Promise<boolean>} - Resolves with setup status
    */
-  resetSettings() {
-    return new Promise((resolve, reject) => {
-      // Use localStorage if Chrome storage is not available
-      if (!this.isStorageAvailable) {
-        const success = this._clearLocalStorage();
-        if (success) {
-          this._saveToLocalStorage(DEFAULT_SETTINGS);
-          resolve();
-        } else {
-          reject(new Error('Failed to clear localStorage'));
-        }
-        return;
-      }
-      
-      // Use Chrome storage
-      try {
-        chrome.storage.sync.clear(() => {
-          if (chrome.runtime.lastError) {
-            console.error('Error clearing settings:', chrome.runtime.lastError);
-            // Try localStorage as fallback
-            const success = this._clearLocalStorage();
-            if (success) {
-              this._saveToLocalStorage(DEFAULT_SETTINGS);
-              resolve();
-            } else {
-              reject(chrome.runtime.lastError);
-            }
-          } else {
-            console.log('Settings cleared successfully');
-            // Set default settings after clearing
-            this.saveSettings(DEFAULT_SETTINGS)
-              .then(resolve)
-              .catch(reject);
-          }
-        });
-      } catch (error) {
-        console.error('Exception while clearing settings:', error);
-        // Try localStorage as fallback
-        const success = this._clearLocalStorage();
-        if (success) {
-          this._saveToLocalStorage(DEFAULT_SETTINGS);
-          resolve();
-        } else {
-          reject(error);
-        }
-      }
-    });
+  async isSetupCompleted() {
+    return this.get(this.keys.SETUP_COMPLETED, this.defaults[this.keys.SETUP_COMPLETED]);
   }
 }
 
