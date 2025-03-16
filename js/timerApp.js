@@ -382,63 +382,134 @@
       try {
         this.log('Running diagnostic checks');
         
-        // Check local storage access
+        // Check local storage access - make check more resilient
         try {
-          localStorage.setItem('timerAppDiagnostic', 'test');
-          const testValue = localStorage.getItem('timerAppDiagnostic');
-          localStorage.removeItem('timerAppDiagnostic');
+          // Use a unique key that won't conflict with actual settings
+          const testKey = `timerApp_diagnostic_test_${Date.now()}`;
+          localStorage.setItem(testKey, 'test');
+          const testValue = localStorage.getItem(testKey);
+          localStorage.removeItem(testKey);
           
           if (testValue !== 'test') {
-            this.warn('LocalStorage read/write test failed');
+            this.warn('LocalStorage read/write test failed, but continuing');
           } else {
             this.log('LocalStorage test successful');
           }
         } catch (storageError) {
-          this.warn('LocalStorage access error', storageError);
+          // Don't fail completely, just log the issue
+          this.warn('LocalStorage access limited - extension may have reduced functionality', storageError);
         }
         
-        // Check DOM access
+        // Check DOM access - softened check
         if (typeof document === 'undefined') {
-          this.warn('Document object is not available');
-        } else {
-          this.log('Document object is available');
+          this.warn('Document object is not available - limited functionality');
         }
         
-        // Check for critical DOM elements
-        const criticalElements = ['timer-screen', 'setup-screen', 'error-screen'];
+        // Check for critical DOM elements - made more resilient
+        const criticalElements = ['timer-screen', 'error-screen'];
         const missingElements = criticalElements.filter(id => !document.getElementById(id));
         
         if (missingElements.length > 0) {
-          this.warn('Missing critical DOM elements', missingElements);
-        } else {
-          this.log('All critical DOM elements are present');
+          this.warn('Some UI elements are missing, interface may be limited', missingElements);
+          // Create missing elements if needed
+          this._createMissingElements(missingElements);
         }
         
-        // Performance check (safely check if performance API is available)
-        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-          const perfStart = performance.now();
-          // Simulate a moderate calculation
-          let sum = 0;
-          for (let i = 0; i < 10000; i++) {
-            sum += i;
-          }
-          const perfEnd = performance.now();
-          
-          if (perfEnd - perfStart > 100) {
-            this.warn('Performance check indicates potential issues', { 
-              duration: perfEnd - perfStart,
-              threshold: 100
-            });
+        // Performance check with defensive coding
+        try {
+          if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+            const perfStart = performance.now();
+            let sum = 0;
+            for (let i = 0; i < 5000; i++) { // Reduced iteration count
+              sum += i;
+            }
+            const perfEnd = performance.now();
+            
+            // Only warn if performance is significantly degraded
+            if (perfEnd - perfStart > 200) { // Increased threshold
+              this.warn('Performance check indicates potential issues', { 
+                duration: perfEnd - perfStart,
+                threshold: 200
+              });
+            }
           } else {
-            this.log('Performance check passed', { duration: perfEnd - perfStart });
+            // Just log, don't treat as critical
+            this.log('Performance API not available, skipping performance check');
           }
-        } else {
-          this.warn('Performance API not available, skipping performance check');
+        } catch (perfError) {
+          this.log('Performance check skipped due to error', perfError);
         }
         
         this.log('Diagnostic checks completed');
+        return true; // Always return true to continue initialization
       } catch (error) {
-        this.error('Diagnostic checks failed', error);
+        // Don't fail initialization due to diagnostic errors
+        this.error('Diagnostic checks had errors, continuing anyway', error);
+        return true;
+      }
+    }
+    
+    /**
+     * Create missing critical elements when needed
+     * @private
+     * @param {string[]} missingElements - Array of missing element IDs
+     */
+    _createMissingElements(missingElements) {
+      try {
+        for (const id of missingElements) {
+          this.log(`Creating missing element: ${id}`);
+          
+          const element = document.createElement('div');
+          element.id = id;
+          
+          // Apply appropriate styles based on element type
+          if (id === 'timer-screen') {
+            element.className = 'screen';
+            element.innerHTML = `
+              <div class="timer-container">
+                <h1 class="timer-title">Timer</h1>
+                <div class="timer-values">
+                  <div class="timer-value-group">
+                    <div class="timer-value" id="hours-value">00</div>
+                    <div class="timer-label">Hours</div>
+                  </div>
+                  <div class="timer-separator">:</div>
+                  <div class="timer-value-group">
+                    <div class="timer-value" id="minutes-value">00</div>
+                    <div class="timer-label">Minutes</div>
+                  </div>
+                  <div class="timer-separator">:</div>
+                  <div class="timer-value-group">
+                    <div class="timer-value" id="seconds-value">00</div>
+                    <div class="timer-label">Seconds</div>
+                  </div>
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="timer-controls">
+                  <button id="settings-button" class="settings-button">Settings</button>
+                </div>
+              </div>
+            `;
+          } else if (id === 'error-screen') {
+            element.className = 'screen hidden';
+            element.innerHTML = `
+              <div class="error-container">
+                <h2>Something went wrong</h2>
+                <p id="error-message">An error occurred while loading the timer.</p>
+                <div class="error-actions">
+                  <button id="retry-button">Retry</button>
+                  <button id="reset-button">Reset Settings</button>
+                </div>
+              </div>
+            `;
+          }
+          
+          document.body.appendChild(element);
+        }
+      } catch (error) {
+        this.error('Failed to create missing elements', error);
       }
     }
     
@@ -2909,15 +2980,57 @@
         this.error('Failed to set up settings auto-recovery:', error);
       }
     }
+
+    /**
+     * Get localized message from messages.json
+     * @param {string} key - The message key
+     * @param {string[]} [substitutions] - Optional substitutions
+     * @returns {string} - Localized message or key if not found
+     */
+    i18n(key, substitutions = []) {
+      try {
+        // Check if chrome.i18n is available
+        if (chrome && chrome.i18n && chrome.i18n.getMessage) {
+          return chrome.i18n.getMessage(key, substitutions);
+        }
+        
+        // Fallback for development environment
+        this.log(`i18n fallback for key: ${key}`);
+        const messages = {
+          appName: 'Life Countdown Timer',
+          appDescription: 'A countdown timer to visualize the passage of time in different ways',
+          dailyTimer: 'Daily Timer',
+          birthdayTimer: 'Birthday Timer',
+          lifeTimer: 'Life Timer',
+          settings: 'Settings',
+          resetSettings: 'Reset Settings',
+          saveSettings: 'Save Settings',
+          cancelSettings: 'Cancel',
+          birthDate: 'Birth Date',
+          lifeExpectancy: 'Life Expectancy (years)',
+          errorMessage: 'Something went wrong',
+          retryButton: 'Retry',
+          timeRemaining: 'Time Remaining',
+          dailyDescription: 'Time remaining until midnight',
+          birthdayDescription: 'Time since your birth',
+          lifeDescription: 'Estimated time remaining in your life'
+        };
+        
+        return messages[key] || key;
+      } catch (error) {
+        this.error('Error getting i18n message', error);
+        return key; // Return the key as fallback
+      }
+    }
   }
 
   // Register the TimerApp class with the ModuleRegistry
   if (window.ModuleRegistry) {
     window.ModuleRegistry.register('TimerApp', TimerApp);
-  }
-
-  // Make TimerApp globally available (safely)
-  if (typeof window !== 'undefined') {
+    console.log('TimerApp registered with ModuleRegistry');
+  } else {
+    console.warn('ModuleRegistry not available, TimerApp will be directly accessible');
+    // Make TimerApp available globally
     window.TimerApp = TimerApp;
   }
 

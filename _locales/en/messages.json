@@ -1,0 +1,70 @@
+{
+  "appName": {
+    "message": "Life Countdown Timer",
+    "description": "The name of the extension"
+  },
+  "appDescription": {
+    "message": "A countdown timer to visualize the passage of time in different ways",
+    "description": "The description of the extension"
+  },
+  "dailyTimer": {
+    "message": "Daily Timer",
+    "description": "Label for the daily timer option"
+  },
+  "birthdayTimer": {
+    "message": "Birthday Timer",
+    "description": "Label for the birthday timer option"
+  },
+  "lifeTimer": {
+    "message": "Life Timer",
+    "description": "Label for the life timer option"
+  },
+  "settings": {
+    "message": "Settings",
+    "description": "Label for the settings button"
+  },
+  "resetSettings": {
+    "message": "Reset Settings",
+    "description": "Label for the reset settings button"
+  },
+  "saveSettings": {
+    "message": "Save Settings",
+    "description": "Label for the save settings button"
+  },
+  "cancelSettings": {
+    "message": "Cancel",
+    "description": "Label for the cancel button in settings"
+  },
+  "birthDate": {
+    "message": "Birth Date",
+    "description": "Label for the birth date field"
+  },
+  "lifeExpectancy": {
+    "message": "Life Expectancy (years)",
+    "description": "Label for the life expectancy field"
+  },
+  "errorMessage": {
+    "message": "Something went wrong",
+    "description": "Generic error message"
+  },
+  "retryButton": {
+    "message": "Retry",
+    "description": "Label for the retry button"
+  },
+  "timeRemaining": {
+    "message": "Time Remaining",
+    "description": "Label for the time remaining section"
+  },
+  "dailyDescription": {
+    "message": "Time remaining until midnight",
+    "description": "Description for the daily timer"
+  },
+  "birthdayDescription": {
+    "message": "Time since your birth",
+    "description": "Description for the birthday timer"
+  },
+  "lifeDescription": {
+    "message": "Estimated time remaining in your life",
+    "description": "Description for the life timer"
+  }
+} 

@@ -1,94 +1,126 @@
-# Countdown Timer Chrome Extension
+# Timer Chrome Extension
 
-A Chrome extension that replaces the new tab page with a customizable countdown timer for important life events.
+A Chrome extension that displays a countdown timer on the new tab page. The extension features various timer types including daily, birthday, and life timers.
 
 ## Features
 
-- **Three Timer Types:**
-  - **Life Timer:** Counts down based on your birthdate and estimated life expectancy
-  - **Birthday Timer:** Counts down to your next birthday
-  - **Daily Timer:** Counts down to midnight of the current day
+- Custom new tab page with countdown timer
+- Multiple timer types (daily, birthday, life)
+- Settings customization
+- First tab in new window shows default Chrome new tab
+- Subsequent tabs in the same window show the timer
 
-- **Intuitive UI:**
-  - Clean, distraction-free interface
-  - Real-time updates every second
-  - Visual progress indicator
-  - Motivational quotes based on timer type
+## Architecture
 
-- **Customizable:**
-  - Simple setup process for first-time users
-  - Easy settings management through extension popup
-  - Persistent storage of preferences across devices
-  - Reset option for starting over
+The extension is built with a modular architecture, separating concerns into different modules:
 
-- **Accessibility:**
-  - Support for dark mode based on system preferences
-  - High-contrast typography for readability
-  - Responsive design for all screen sizes
+### Core Files
+
+- `manifest.json` - Extension configuration
+- `newtab.html` - Custom new tab page
+- `popup.html` - Extension popup interface
+
+### JavaScript Modules
+
+- `js/background.js` - Service worker that manages tab overrides
+- `js/timerApp.js` - Main timer application logic
+- `js/modules/tabManager.js` - Tab and window management
+- `js/modules/diagnostic.js` - Diagnostic and debugging utilities
+
+### CSS
+
+- `styles/newtab.css` - Styles for the new tab page
+- `styles/popup.css` - Styles for the extension popup
+
+## Tab Override Behavior
+
+The extension implements a special tab override behavior:
+
+1. The first new tab opened in a new browser window will display Chrome's default new tab page
+2. Subsequent new tabs in the same window will display the custom timer page
+3. This pattern repeats for each new window that is opened
 
 ## Installation
 
-### From Chrome Web Store (Recommended)
-
-1. Visit the [Chrome Web Store](https://chrome.google.com/webstore/) and search for "Countdown Timer"
-2. Click "Add to Chrome"
-3. Confirm the installation
-
-### Manual Installation (Developer Mode)
-
-1. Download or clone this repository
+1. Clone this repository
 2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top-right corner
+3. Enable "Developer mode" (toggle in the top-right)
 4. Click "Load unpacked" and select the extension directory
-5. The extension is now installed and will override your new tab page
-
-## Usage
-
-1. **First-Time Setup:**
-   - When you open a new tab for the first time, you'll see the setup screen
-   - Choose your preferred timer type
-   - Enter required information (birthdate, life expectancy)
-   - Click "Start Countdown" to begin
-
-2. **Changing Settings:**
-   - Click the extension icon in your browser toolbar
-   - Modify settings in the popup
-   - Click "Save Changes" to update
-
-3. **Resetting Settings:**
-   - Click the extension icon in your browser toolbar
-   - Click "Reset All Settings" in the popup
-   - Confirm the reset when prompted
-
-## Privacy
-
-This extension respects your privacy:
-- All data is stored locally on your device using Chrome's secure storage
-- No data is transmitted to external servers
-- No analytics or tracking is implemented
+5. The extension should now be installed and active
 
 ## Development
 
-### Project Structure
+### Setting Up
 
-- `manifest.json`: Extension configuration
-- `newtab.html/css/js`: New tab page implementation
-- `popup.html/css/js`: Settings popup implementation
-- `background.js`: Background service worker
-- `js/storage.js`: Storage management
-- `js/timerCalculations.js`: Timer calculation logic
-- `icons/`: Extension icons
+1. Clone the repository
+2. Navigate to the extension directory
+3. The extension can be loaded directly into Chrome without a build step
 
-### Contributing
+### Testing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+The extension includes diagnostic tools for testing the tab override functionality:
+
+```javascript
+// In Chrome DevTools console of the extension's background page:
+
+// Test tab override behavior
+const Diagnostic = await import('./modules/diagnostic.js');
+await Diagnostic.default.testTabOverride();
+
+// View current window and tab state
+await Diagnostic.default.logCurrentState();
+
+// Reset tab counts (for testing)
+await Diagnostic.default.resetTracking();
+```
+
+### Debugging
+
+If you encounter issues with the tab override functionality:
+
+1. Open `chrome://extensions/` in Chrome
+2. Find the Timer extension and click "Details"
+3. Click "Background page" under "Inspect views" to open DevTools for the background page
+4. View the console for detailed logs about tab detection and override decisions
+5. Use the Diagnostic module's tools to gather detailed information:
+
+```javascript
+// Generate and download a complete diagnostic report
+const Diagnostic = await import('./modules/diagnostic.js');
+await Diagnostic.default.downloadDiagnosticInfo();
+```
+
+## Edge Cases Handled
+
+The extension includes comprehensive handling for various edge cases:
+
+- Race conditions in tab creation/updating
+- Browser startup and extension initialization
+- Service worker termination and restarts
+- Multiple rapid tab openings
+- Tab closures during redirection
+- Memory leaks and resource cleanup
+- Error recovery and graceful degradation
+
+## Troubleshooting
+
+### Timer Not Showing On New Tabs
+
+If the timer is not showing on new tabs:
+
+1. Check if the extension is enabled in `chrome://extensions/`
+2. Verify that the first tab in each window is showing the default Chrome new tab (this is expected behavior)
+3. Open the background page DevTools and check for any error messages
+4. Try resetting the tab tracking by running the diagnostic reset tool
+
+### Extension Popup Not Working
+
+If the extension popup is not working:
+
+1. Check the console for errors in the popup's DevTools
+2. Verify that the extension has the necessary permissions
+3. Try reloading the extension from `chrome://extensions/`
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Built with CSS, HTML, and JavaScript
-- Icons by [Feather Icons](https://feathericons.com/)
-- Fonts from Google Fonts 
+[MIT License](LICENSE) 

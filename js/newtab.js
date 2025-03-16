@@ -9,17 +9,33 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Make sure all required modules are loaded
     if (typeof checkModulesLoaded !== 'function') {
-        showError('Core modules not loaded properly. Please reload the page.');
+        console.error('Core module checker not available, attempting to load app directly');
+        // Try direct initialization after a small delay
+        setTimeout(initializeAppWithFallbacks, 500);
         return;
       }
       
     if (!checkModulesLoaded()) {
         console.log('Waiting for modules to load...');
         
-        // Check again after a delay
+        // First retry after a short delay
         setTimeout(function() {
             if (!checkModulesLoaded()) {
-                showError('Failed to load all required modules. Please reload the page.');
+                console.warn('Modules not loaded after first attempt, trying again...');
+                
+                // Try loading key scripts directly
+                attemptManualModuleLoading();
+                
+                // Second retry after a longer delay
+                setTimeout(function() {
+                    if (!checkModulesLoaded()) {
+                        console.error('Failed to load all required modules after multiple attempts');
+                        // Try initialization with fallbacks despite missing modules
+                        initializeAppWithFallbacks();
+                    } else {
+                        initializeApp();
+                    }
+                }, 2000);
             } else {
                 initializeApp();
             }
@@ -30,6 +46,80 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
+ * Attempt to load key modules manually
+ */
+function attemptManualModuleLoading() {
+    console.log('Attempting manual module loading');
+    
+    const criticalScripts = [
+        'js/moduleRegistry.js',
+        'js/storage.js',
+        'js/timerCalculations.js',
+        'js/timerApp.js'
+    ];
+    
+    for (const script of criticalScripts) {
+        try {
+            // Check if script was already loaded
+            const existingScript = document.querySelector(`script[src="${script}"]`);
+            if (existingScript) {
+                console.log(`Script ${script} already loaded, skipping`);
+                continue;
+            }
+            
+            console.log(`Manually loading ${script}`);
+            const scriptElement = document.createElement('script');
+            scriptElement.src = script;
+            scriptElement.async = false; // Load scripts in sequence
+            document.head.appendChild(scriptElement);
+        } catch (error) {
+            console.error(`Error manually loading ${script}:`, error);
+      }
+    }
+  }
+  
+  /**
+ * Initialize the app even when some modules are missing
+ */
+function initializeAppWithFallbacks() {
+    console.log('Initializing app with fallbacks');
+    
+    try {
+        // Try using ModuleRegistry first if available
+        if (window.ModuleRegistry && window.ModuleRegistry.isRegistered('TimerApp')) {
+            console.log('ModuleRegistry available, using registered TimerApp');
+            const TimerApp = window.ModuleRegistry.get('TimerApp');
+            const timerApp = new TimerApp();
+            window.timerApp = timerApp;
+            timerApp.init().catch(err => {
+                console.error('Error initializing timer app:', err);
+                showBasicTimer();
+            });
+        return;
+      }
+      
+        // Try direct TimerApp if available
+        if (window.TimerApp) {
+            console.log('Using global TimerApp');
+            const timerApp = new window.TimerApp();
+            window.timerApp = timerApp;
+            timerApp.init().catch(err => {
+                console.error('Error initializing timer app:', err);
+                showBasicTimer();
+            });
+        return;
+      }
+      
+        // If nothing worked, show fallback timer
+        console.warn('No timer implementation found, using basic fallback');
+        showBasicTimer();
+    } catch (error) {
+        console.error('Critical error during fallback initialization:', error);
+        showBasicTimer();
+    }
+  }
+  
+  /**
  * Initialize the timer application
  */
 function initializeApp() {

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Life Timer Settings</title>
+  <link rel="stylesheet" href="styles/options.css">
+  <script src="js/app-loader.js"></script>
+  <script src="js/options.js"></script>
+</head>
+<body>
+  <div class="settings-container">
+    <header class="settings-header">
+      <h1>Life Timer Settings</h1>
+      <p class="settings-subtitle">Customize your timer experience</p>
+    </header>
+
+    <main class="settings-content">
+      <form id="settings-form">
+        <!-- Timer Type Section -->
+        <section class="settings-section">
+          <h2>Timer Type</h2>
+          <div class="settings-options">
+            <div class="radio-card">
+              <input type="radio" id="daily-timer" name="timerType" value="daily">
+              <label for="daily-timer">
+                <div class="radio-card-icon">🕒</div>
+                <div class="radio-card-content">
+                  <h3>Daily Timer</h3>
+                  <p>Count down to midnight each day</p>
+                </div>
+              </label>
+            </div>
+
+            <div class="radio-card">
+              <input type="radio" id="birthday-timer" name="timerType" value="birthday">
+              <label for="birthday-timer">
+                <div class="radio-card-icon">🎂</div>
+                <div class="radio-card-content">
+                  <h3>Birthday Timer</h3>
+                  <p>Track time since your birth</p>
+                </div>
+              </label>
+            </div>
+
+            <div class="radio-card">
+              <input type="radio" id="life-timer" name="timerType" value="life">
+              <label for="life-timer">
+                <div class="radio-card-icon">⏳</div>
+                <div class="radio-card-content">
+                  <h3>Life Timer</h3>
+                  <p>Estimate remaining time in your life</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Birth Date Section -->
+        <section class="settings-section">
+          <h2>Personal Information</h2>
+          <div class="form-group">
+            <label for="birthDate">Your Birth Date</label>
+            <input type="date" id="birthDate" name="birthDate">
+            <p class="form-help">Required for Birthday and Life timers</p>
+          </div>
+
+          <div class="form-group">
+            <label for="lifeExpectancy">Life Expectancy (years)</label>
+            <input type="number" id="lifeExpectancy" name="lifeExpectancy" min="1" max="120" step="0.1">
+            <p class="form-help">Used to calculate remaining time for Life timer</p>
+          </div>
+        </section>
+
+        <!-- Appearance Section -->
+        <section class="settings-section">
+          <h2>Appearance</h2>
+          <div class="form-group">
+            <label>Theme</label>
+            <div class="theme-selector">
+              <button type="button" class="theme-button active" data-theme="auto">
+                <span class="theme-icon">🌓</span>
+                <span>System Default</span>
+              </button>
+              <button type="button" class="theme-button" data-theme="dark">
+                <span class="theme-icon">🌙</span>
+                <span>Dark</span>
+              </button>
+              <button type="button" class="theme-button" data-theme="light">
+                <span class="theme-icon">☀️</span>
+                <span>Light</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Actions -->
+        <div class="settings-actions">
+          <button type="submit" id="save-button" class="primary-button">Save Settings</button>
+          <button type="button" id="reset-button" class="secondary-button">Reset to Default</button>
+        </div>
+
+        <!-- Status Message -->
+        <div id="status-message" class="status-message hidden"></div>
+      </form>
+    </main>
+
+    <footer class="settings-footer">
+      <p>Life Timer &copy; 2025 | <a href="#" id="privacy-link">Privacy Policy</a></p>
+    </footer>
+  </div>
+</body>
+</html> 

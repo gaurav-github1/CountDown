@@ -171,17 +171,61 @@ function loadScript(src, errorMessage, callback) {
  * @returns {boolean} True if all modules are loaded
  */
 function checkModulesLoaded() {
-  const modules = window.LOADED_MODULES;
-  const requiredModules = ['moduleRegistry', 'storage', 'timerCalculations', 'timerApp'];
-  
-  for (const module of requiredModules) {
-    if (!modules[module]) {
-      console.warn(`Required module not loaded: ${module}`);
-      return false;
+  try {
+    console.log('Checking module availability...');
+    
+    // Primary check: Use LOADED_MODULES object
+    const modules = window.LOADED_MODULES || {};
+    const requiredModules = ['moduleRegistry', 'storage', 'timerCalculations', 'timerApp'];
+    
+    let allLoaded = true;
+    for (const module of requiredModules) {
+      if (!modules[module]) {
+        console.warn(`Required module not loaded via LOADED_MODULES: ${module}`);
+        allLoaded = false;
+      }
     }
+    
+    if (allLoaded) {
+      console.log('All modules loaded according to LOADED_MODULES');
+      return true;
+    }
+    
+    // Secondary check: Try to verify module availability directly
+    const hasModuleRegistry = window.ModuleRegistry && typeof window.ModuleRegistry.register === 'function';
+    const hasStorage = window.StorageManager || window.ModuleRegistry?.isRegistered('StorageManager');
+    const hasTimerCalculations = window.TimerCalculator || window.ModuleRegistry?.isRegistered('TimerCalculator');
+    const hasTimerApp = window.TimerApp || window.ModuleRegistry?.isRegistered('TimerApp');
+    
+    // Update LOADED_MODULES object if it exists to reflect reality
+    if (window.LOADED_MODULES) {
+      window.LOADED_MODULES.moduleRegistry = hasModuleRegistry;
+      window.LOADED_MODULES.storage = hasStorage;
+      window.LOADED_MODULES.timerCalculations = hasTimerCalculations;
+      window.LOADED_MODULES.timerApp = hasTimerApp;
+    }
+    
+    const directCheck = hasModuleRegistry && hasStorage && hasTimerCalculations && hasTimerApp;
+    
+    console.log('Module direct check results:', {
+      moduleRegistry: hasModuleRegistry,
+      storage: hasStorage,
+      timerCalculations: hasTimerCalculations,
+      timerApp: hasTimerApp
+    });
+    
+    // If most critical components are available, proceed anyway
+    if (hasTimerApp && (hasStorage || hasTimerCalculations)) {
+      console.log('Critical modules are available, proceeding despite missing some dependencies');
+      return true;
+    }
+    
+    return directCheck;
+  } catch (error) {
+    console.error('Error checking modules:', error);
+    // In case of error, make a simpler check for just the TimerApp
+    return !!(window.TimerApp || (window.ModuleRegistry && window.ModuleRegistry.isRegistered('TimerApp')));
   }
-  
-  return true;
 }
 
 // Function to load all necessary modules

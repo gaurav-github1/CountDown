@@ -3,61 +3,112 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Countdown Timer Settings</title>
+  <title>Life Timer</title>
   <link rel="stylesheet" href="styles/popup.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Load core script dependencies -->
+  <script src="js/app-loader.js"></script>
+  <script src="js/popup.js"></script>
 </head>
 <body>
   <div class="popup-container">
-    <h1>Countdown Timer Settings</h1>
-    
-    <div class="settings-section">
-      <h2>Change Timer Type</h2>
-      <form id="timer-type-form">
-        <div class="timer-selection">
-          <div class="timer-option">
-            <input type="radio" id="popup-life-timer" name="timer-type" value="life">
-            <label for="popup-life-timer">Life Timer</label>
-          </div>
-          
-          <div class="timer-option">
-            <input type="radio" id="popup-birthday-timer" name="timer-type" value="birthday">
-            <label for="popup-birthday-timer">Birthday Timer</label>
-          </div>
-          
-          <div class="timer-option">
-            <input type="radio" id="popup-daily-timer" name="timer-type" value="daily">
-            <label for="popup-daily-timer">Daily Timer</label>
-          </div>
-        </div>
-        
-        <div id="popup-birthdate-container" class="input-group">
-          <label for="popup-birthdate">Your birthdate:</label>
-          <input type="date" id="popup-birthdate" name="birthdate">
-        </div>
-        
-        <div id="popup-life-expectancy-container" class="input-group">
-          <label for="popup-life-expectancy">Life expectancy (years):</label>
-          <input type="number" id="popup-life-expectancy" name="life-expectancy" min="1" max="120" value="80">
-        </div>
-        
-        <div class="button-container">
-          <button type="submit" id="popup-save-settings">Save Changes</button>
-          <button type="button" id="popup-reset-settings">Reset All Settings</button>
-        </div>
-      </form>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Loading your timer...</p>
     </div>
     
-    <div class="settings-section">
-      <h2>About</h2>
-      <p>Countdown Timer is a Chrome extension that replaces your new tab page with a customizable countdown timer, helping you stay mindful of the passage of time.</p>
-      <p class="version">Version 1.0</p>
+    <!-- Timer Display Section -->
+    <div id="timer-container" class="timer-container glass-effect">
+      <h1 id="timer-title" class="timer-title">Daily Timer</h1>
+      <div class="quote-container">
+        <p id="timer-description" class="timer-description">Time until midnight</p>
+      </div>
+      
+      <div class="timer-values">
+        <div class="timer-value-group" style="--index: 0">
+          <div id="hours-value" class="timer-value">00</div>
+          <div class="timer-label">Hours</div>
+        </div>
+        <div class="timer-separator">:</div>
+        <div class="timer-value-group" style="--index: 1">
+          <div id="minutes-value" class="timer-value">00</div>
+          <div class="timer-label">Minutes</div>
+        </div>
+        <div class="timer-separator">:</div>
+        <div class="timer-value-group" style="--index: 2">
+          <div id="seconds-value" class="timer-value">00</div>
+          <div class="timer-label">Seconds</div>
+        </div>
+      </div>
+      
+      <div class="progress-container">
+        <div id="progress-bar" class="progress-bar"></div>
+        <div id="progress-percent" class="progress-percent">0%</div>
+      </div>
+      
+      <div class="popup-controls">
+        <button id="open-settings-button" class="settings-button">Settings</button>
+        <button id="open-newtab-button" class="newtab-button">Full View</button>
+      </div>
+    </div>
+    
+    <!-- Error Screen -->
+    <div id="error-screen" class="screen hidden">
+      <div id="error-container" class="error-container">
+        <h2>Something went wrong</h2>
+        <p id="error-message">An error occurred while loading your timer.</p>
+        <div class="error-actions">
+          <button id="retry-button" class="retry-button">Retry</button>
+          <button id="reset-button" class="reset-button">Reset Settings</button>
+        </div>
+      </div>
     </div>
   </div>
-  
-  <script src="js/storage.js"></script>
-  <script src="js/popup.js"></script>
+
+  <script>
+    // Apply theme from settings when popup is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Get theme preference from storage
+      chrome.storage.sync.get(['theme'], function(items) {
+        if (chrome.runtime.lastError) {
+          console.warn('Error accessing theme settings:', chrome.runtime.lastError);
+          return;
+        }
+        
+        const theme = items.theme || 'auto';
+        if (theme === 'dark' || theme === 'light') {
+          document.documentElement.setAttribute('data-theme', theme);
+        }
+      });
+      
+      // Add animation class to timer values for staggered entrance
+      const observeDigitChanges = () => {
+        const timerValues = document.querySelectorAll('.timer-value');
+        let lastValues = Array.from(timerValues).map(el => el.textContent);
+        
+        // Check for changes every 1 second
+        setInterval(() => {
+          timerValues.forEach((valueElement, index) => {
+            const currentValue = valueElement.textContent;
+            if (currentValue !== lastValues[index]) {
+              // Add animation class
+              valueElement.classList.add('changed');
+              
+              // Store new value
+              lastValues[index] = currentValue;
+              
+              // Remove class after animation completes
+              setTimeout(() => {
+                valueElement.classList.remove('changed');
+              }, 500);
+            }
+          });
+        }, 1000);
+      };
+      
+      // Start observing after a short delay to ensure popup is loaded
+      setTimeout(observeDigitChanges, 1500);
+    });
+  </script>
 </body>
 </html> 

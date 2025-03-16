@@ -1,32 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Life Countdown Timer",
-  "version": "1.0.0",
-  "description": "A countdown timer to visualize the passage of time in different ways",
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+  "name": "__MSG_appName__",
+  "description": "__MSG_appDescription__",
+  "version": "1.0",
+  "default_locale": "en",
+  "background": {
+    "service_worker": "js/background.js",
+    "type": "module"
   },
   "icons": {
     "16": "icons/icon16.jpg",
     "48": "icons/icon48.jpg",
     "128": "icons/icon128.jpg"
-  },
-  "chrome_url_overrides": {
-    "newtab": "newtab.html"
-  },
-  "permissions": [
-    "storage",
-    "alarms",
-    "notifications",
-    "tabs",
-    "scripting"
-  ],
-  "host_permissions": [
-    "chrome-extension://*/*",
-    "chrome://newtab/*"
-  ],
-  "background": {
-    "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html",
@@ -34,7 +19,22 @@
       "16": "icons/icon16.jpg",
       "48": "icons/icon48.jpg",
       "128": "icons/icon128.jpg"
-    }
+    },
+    "default_title": "Life Timer"
   },
-  "minimum_chrome_version": "88"
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "chrome://newtab/"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 } 
