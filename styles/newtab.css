@@ -802,6 +802,7 @@ button:active {
     min-width: 90px;
     padding: 8px 4px;
   }
+
 }
 
 @media (max-width: 992px) {
@@ -1075,4 +1076,4 @@ input[type="radio"]:checked:before {
 /* Ensure setup screen is hidden by default */
 #setup-screen {
   display: none !important;
-} 
+} } 

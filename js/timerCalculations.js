@@ -1,393 +1,293 @@
 /**
- * Timer Calculations Module for Countdown Timer Extension
- * Contains functions for calculating different types of countdowns
+ * TimerCalculator - Handles timer calculations
+ * 
+ * Calculates time remaining for different timer types (life, birthday, daily)
+ * Uses ModuleRegistry pattern to prevent redeclaration errors
  */
 
-class TimerCalculator {
-  /**
-   * Calculate the life timer (time until end of life expectancy)
-   * @param {string} birthDateStr - Birth date in ISO format
-   * @param {number} lifeExpectancy - Life expectancy in years
-   * @returns {Object} Time remaining details or null if already passed
-   */
-  calculateLifeTimer(birthDateStr, lifeExpectancy) {
-    if (!birthDateStr || !lifeExpectancy) {
-      console.error('Invalid parameters for life timer calculation');
-      return null;
+// Use IIFE to prevent global namespace pollution
+(function() {
+    // Skip if already registered
+    if (window.ModuleRegistry && window.ModuleRegistry.isRegistered('TimerCalculator')) {
+        console.log('TimerCalculator already registered, skipping definition');
+        return;
     }
-
-    try {
-      const birthDate = new Date(birthDateStr);
-      const now = new Date();
-      
-      // Validate birth date
-      if (birthDate > now || isNaN(birthDate.getTime())) {
-        console.error('Invalid birth date');
-        return null;
-      }
-      
-      // Calculate end date based on life expectancy more precisely
-      // This accounts for leap years by adding the exact number of days
-      const endDate = new Date(birthDate);
-      
-      // Add life expectancy years to birth date
-      // This handles leap years correctly by keeping the same day and month
-      endDate.setFullYear(birthDate.getFullYear() + lifeExpectancy);
-      
-      // Handle special case: if birthdate is Feb 29 and the target year is not a leap year
-      if (birthDate.getMonth() === 1 && birthDate.getDate() === 29 && !this._isLeapYear(endDate.getFullYear())) {
-        endDate.setDate(28); // Use Feb 28th instead
-      }
-      
-      // If end date has passed, return appropriate message
-      if (endDate <= now) {
-        return {
-          timeRemaining: 0,
-          targetDate: endDate,
-          isPassed: true,
-          progressPercentage: 100,
-          message: 'You have reached your estimated life expectancy. Every day is a gift!',
-          years: 0,
-          months: 0,
-          days: 0,
-          hours: 0,
-          minutes: 0,
-          seconds: 0
-        };
-      }
-      
-      // Calculate time remaining
-      const timeRemaining = this._calculateTimeRemaining(now, endDate);
-      const progressPercentage = this._calculateLifeProgressPercentage(birthDate, endDate, now);
-      
-      return {
-        ...timeRemaining,
-        targetDate: endDate,
-        isPassed: false,
-        progressPercentage,
-        message: null
-      };
-    } catch (error) {
-      console.error('Error calculating life timer:', error);
-      return this._getDefaultTimerData();
-    }
-  }
-  
-  /**
-   * Calculate the birthday timer (time until next birthday)
-   * @param {string} birthDateStr - Birth date in ISO format
-   * @returns {Object} Time remaining details
-   */
-  calculateBirthdayTimer(birthDateStr) {
-    if (!birthDateStr) {
-      console.error('Invalid parameters for birthday timer calculation');
-      return null;
-    }
-
-    try {
-      const birthDate = new Date(birthDateStr);
-      const now = new Date();
-      
-      // Validate birth date
-      if (birthDate > now || isNaN(birthDate.getTime())) {
-        console.error('Invalid birth date');
-        return null;
-      }
-      
-      // Get current year, month, and day for accurate comparison
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth();
-      const currentDate = now.getDate();
-      const birthMonth = birthDate.getMonth();
-      const birthDay = birthDate.getDate();
-      
-      // Calculate next birthday
-      let nextBirthdayYear = currentYear;
-      
-      // If this year's birthday has passed, next birthday is next year
-      if (
-        (birthMonth < currentMonth) || 
-        (birthMonth === currentMonth && birthDay < currentDate)
-      ) {
-        nextBirthdayYear = currentYear + 1;
-      }
-      
-      // Create date for next birthday
-      const nextBirthday = new Date(nextBirthdayYear, birthMonth, birthDay);
-      
-      // Handle leap year birthdays (February 29)
-      if (birthMonth === 1 && birthDay === 29) {
-        // Check if next birthday year is not a leap year
-        if (!this._isLeapYear(nextBirthdayYear)) {
-          // Set to Feb 28 for non-leap years
-          nextBirthday.setDate(28);
+    
+    /**
+     * TimerCalculator class for handling timer calculations
+     */
+    class TimerCalculator {
+        constructor() {
+            // Debug mode flag
+            this.debug = window.DEBUG_MODE || false;
         }
-      }
-      
-      // Calculate age on next birthday
-      const nextAge = nextBirthdayYear - birthDate.getFullYear();
-      
-      // Check if it's birthday today - compare only month and day
-      const isBirthdayToday = currentMonth === birthMonth && currentDate === birthDay;
-      
-      // Calculate time remaining
-      const timeRemaining = this._calculateTimeRemaining(now, nextBirthday);
-      
-      // Calculate progress (days passed since last birthday and until next birthday)
-      const lastBirthday = new Date(
-        isBirthdayToday ? currentYear : (nextBirthdayYear - 1), 
-        birthMonth, 
-        birthDay
-      );
-      
-      // Adjust for leap year if needed
-      if (birthMonth === 1 && birthDay === 29 && !this._isLeapYear(lastBirthday.getFullYear())) {
-        lastBirthday.setDate(28);
-      }
-      
-      // Calculate days between birthdays accounting for leap years
-      const daysFromLastTillNext = this._getDaysBetweenDates(lastBirthday, nextBirthday);
-      const daysSinceLastBirthday = this._getDaysBetweenDates(lastBirthday, now);
-      
-      const progressPercentage = (daysSinceLastBirthday / daysFromLastTillNext) * 100;
-      
-      if (isBirthdayToday) {
-        return {
-          ...timeRemaining,
-          targetDate: nextBirthday,
-          nextAge,
-          isPassed: true,
-          progressPercentage: 0, // Reset progress on birthday
-          message: `Happy ${nextAge}${this._getOrdinalSuffix(nextAge)} Birthday!`
-        };
-      }
-      
-      return {
-        ...timeRemaining,
-        targetDate: nextBirthday,
-        nextAge,
-        isPassed: false,
-        progressPercentage,
-        message: null
-      };
-    } catch (error) {
-      console.error('Error calculating birthday timer:', error);
-      return this._getDefaultTimerData();
+        
+        /**
+         * Calculate life timer (time remaining in life based on life expectancy)
+         * @param {string} birthDateString - Birth date in YYYY-MM-DD format
+         * @param {number} lifeExpectancy - Life expectancy in years
+         * @returns {Object} Object containing years, months, days, hours, minutes, seconds remaining
+         */
+        calculateLifeTimer(birthDateString, lifeExpectancy = 80) {
+            try {
+                this.log('Calculating life timer');
+                
+                // Get current date and time
+                const now = new Date();
+                
+                // Parse birth date
+                let birthDate;
+                try {
+                    birthDate = new Date(birthDateString);
+                    
+                    // Validate birth date
+                    if (isNaN(birthDate.getTime())) {
+                        throw new Error('Invalid birth date');
+                    }
+                } catch (error) {
+                    console.error('Error parsing birth date:', error);
+                    return this.getDefaultTimerData('Invalid birth date. Please check your settings.');
+                }
+                
+                // Calculate end date (birth date + life expectancy years)
+                const endDate = new Date(birthDate);
+                endDate.setFullYear(birthDate.getFullYear() + lifeExpectancy);
+                
+                // If end date is in the past, life expectancy has been reached
+                if (endDate < now) {
+                    this.log('Life expectancy reached');
+                    return this.getDefaultTimerData('Life expectancy reached.');
+                }
+                
+                // Calculate time difference
+                const result = this.calculateTimeDifference(now, endDate);
+                
+                // Calculate more accurate progress percentage for life timer
+                const totalLifeMs = endDate.getTime() - birthDate.getTime();
+                const elapsedLifeMs = now.getTime() - birthDate.getTime();
+                const progressPercentage = (elapsedLifeMs / totalLifeMs) * 100;
+                
+                result.progressPercentage = progressPercentage;
+                
+                return result;
+                
+            } catch (error) {
+                console.error('Error calculating life timer:', error);
+                return this.getDefaultTimerData('Error calculating life timer.');
+            }
+        }
+        
+        /**
+         * Calculate birthday timer (time until next birthday)
+         * @param {string} birthDateString - Birth date in YYYY-MM-DD format
+         * @returns {Object} Object containing years, months, days, hours, minutes, seconds until next birthday
+         */
+        calculateBirthdayTimer(birthDateString) {
+            try {
+                this.log('Calculating birthday timer');
+                
+                // Get current date and time
+                const now = new Date();
+                
+                // Parse birth date
+                let birthDate;
+                try {
+                    birthDate = new Date(birthDateString);
+                    
+                    // Validate birth date
+                    if (isNaN(birthDate.getTime())) {
+                        throw new Error('Invalid birth date');
+                    }
+                } catch (error) {
+                    console.error('Error parsing birth date:', error);
+                    return this.getDefaultTimerData('Invalid birth date. Please check your settings.');
+                }
+                
+                // Calculate next birthday
+                const nextBirthday = new Date(now.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+                
+                // If birthday has already occurred this year, set to next year
+                if (nextBirthday < now) {
+                    nextBirthday.setFullYear(now.getFullYear() + 1);
+                }
+                
+                // Calculate previous birthday
+                const prevBirthday = new Date(nextBirthday);
+                prevBirthday.setFullYear(prevBirthday.getFullYear() - 1);
+                
+                // Calculate time difference
+                const result = this.calculateTimeDifference(now, nextBirthday);
+                
+                // Calculate more accurate progress percentage for birthday timer
+                const totalDuration = nextBirthday.getTime() - prevBirthday.getTime();
+                const elapsed = now.getTime() - prevBirthday.getTime();
+                const progressPercentage = (elapsed / totalDuration) * 100;
+                
+                result.progressPercentage = progressPercentage;
+                
+                // Add age information
+                const age = now.getFullYear() - birthDate.getFullYear() - (nextBirthday > now ? 0 : 1);
+                result.message = `Countdown to your ${age + 1}${this.getOrdinalSuffix(age + 1)} birthday`;
+                
+                return result;
+                
+            } catch (error) {
+                console.error('Error calculating birthday timer:', error);
+                return this.getDefaultTimerData('Error calculating birthday timer.');
+            }
+        }
+        
+        /**
+         * Calculate daily timer (time until midnight)
+         * @returns {Object} Object containing hours, minutes, seconds until midnight
+         */
+        calculateDailyTimer() {
+            try {
+                this.log('Calculating daily timer');
+                
+                // Get current date and time
+                const now = new Date();
+                
+                // Calculate midnight
+                const midnight = new Date(now);
+                midnight.setHours(24, 0, 0, 0);
+                
+                // Calculate the start of the day
+                const startOfDay = new Date(now);
+                startOfDay.setHours(0, 0, 0, 0);
+                
+                // Calculate time difference
+                const result = this.calculateTimeDifference(now, midnight);
+                result.years = 0;
+                result.months = 0;
+                result.days = 0;
+                
+                // Calculate more accurate progress percentage based on time of day
+                const totalSecondsInDay = 24 * 60 * 60;
+                const secondsSinceDayStart = (now.getTime() - startOfDay.getTime()) / 1000;
+                result.progressPercentage = (secondsSinceDayStart / totalSecondsInDay) * 100;
+                
+                return result;
+                
+            } catch (error) {
+                console.error('Error calculating daily timer:', error);
+                return this.getDefaultTimerData('Error calculating daily timer.');
+            }
+        }
+        
+        /**
+         * Calculate time difference between two dates
+         * @param {Date} startDate - Start date
+         * @param {Date} endDate - End date
+         * @returns {Object} Object containing time units (years, months, days, hours, minutes, seconds)
+         */
+        calculateTimeDifference(startDate, endDate) {
+            try {
+                this.log(`Calculating time difference from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+                
+                // Calculate total difference in milliseconds
+                const diffMs = endDate.getTime() - startDate.getTime();
+                
+                // If end date is in the past, return zero values
+                if (diffMs <= 0) {
+                    return this.getZeroValues();
+                }
+                
+                // Calculate time units
+                const diffSeconds = Math.floor(diffMs / 1000) % 60;
+                const diffMinutes = Math.floor(diffMs / (1000 * 60)) % 60;
+                const diffHours = Math.floor(diffMs / (1000 * 60 * 60)) % 24;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) % 30;
+                const diffMonths = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30)) % 12;
+                const diffYears = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 365));
+                
+                // Calculate a simple progress percentage (for life expectancy)
+                const totalMs = endDate.getTime() - startDate.getTime();
+                const progressPercentage = ((totalMs - diffMs) / totalMs) * 100;
+                
+                return {
+                    years: diffYears,
+                    months: diffMonths,
+                    days: diffDays,
+                    hours: diffHours,
+                    minutes: diffMinutes,
+                    seconds: diffSeconds,
+                    progressPercentage: progressPercentage,
+                    isPassed: false
+                };
+                
+            } catch (error) {
+                console.error('Error calculating time difference:', error);
+                return this.getZeroValues();
+            }
+        }
+        
+        /**
+         * Get zero values for all time units
+         * @returns {Object} Object with all time units set to zero
+         */
+        getZeroValues() {
+            return {
+                years: 0,
+                months: 0,
+                days: 0,
+                hours: 0,
+                minutes: 0,
+                seconds: 0,
+                progressPercentage: 100,
+                isPassed: true
+            };
+        }
+        
+        /**
+         * Get default timer data with an optional message
+         * @param {string} message - Optional message to include
+         * @returns {Object} Default timer data
+         */
+        getDefaultTimerData(message = '') {
+            const data = this.getZeroValues();
+            
+            if (message) {
+                data.message = message;
+            }
+            
+            return data;
+        }
+        
+        /**
+         * Get ordinal suffix for a number (1st, 2nd, 3rd, etc.)
+         * @param {number} n - Number
+         * @returns {string} Ordinal suffix
+         */
+        getOrdinalSuffix(n) {
+            const s = ["th", "st", "nd", "rd"];
+            const v = n % 100;
+            return s[(v - 20) % 10] || s[v] || s[0];
+        }
+        
+        /**
+         * Log message if debug mode is enabled
+         * @param {string} message - Message to log
+         * @param {any} [data] - Additional data to log
+         */
+        log(message, data) {
+            if (this.debug) {
+                if (data) {
+                    console.log(`[TimerCalculator] ${message}`, data);
+                } else {
+                    console.log(`[TimerCalculator] ${message}`);
+                }
+            }
+        }
     }
-  }
-  
-  /**
-   * Calculate the daily timer (time until midnight)
-   * @returns {Object} Time remaining details
-   */
-  calculateDailyTimer() {
-    try {
-      const now = new Date();
-      
-      // Calculate midnight tonight in local time zone
-      const midnight = new Date(now);
-      midnight.setHours(24, 0, 0, 0);
-      
-      // Calculate time remaining
-      const timeRemaining = this._calculateTimeRemaining(now, midnight);
-      
-      // Calculate progress (percentage of day passed)
-      const millisecondsInDay = 24 * 60 * 60 * 1000;
-      const millisecondsSinceMidnight = 
-        now - new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      const progressPercentage = (millisecondsSinceMidnight / millisecondsInDay) * 100;
-      
-      // Add a message when it's near the end of the day
-      let message = null;
-      if (timeRemaining.hours === 0 && timeRemaining.minutes < 30) {
-        message = "Almost there! Today is nearly complete.";
-      }
-      
-      return {
-        ...timeRemaining,
-        targetDate: midnight,
-        isPassed: false,
-        progressPercentage,
-        message
-      };
-    } catch (error) {
-      console.error('Error calculating daily timer:', error);
-      return this._getDefaultTimerData();
-    }
-  }
-  
-  /**
-   * Get default timer data for error cases
-   * @returns {Object} Default timer data
-   * @private
-   */
-  _getDefaultTimerData() {
-    return {
-      total: 0,
-      years: 0,
-      months: 0,
-      days: 0,
-      hours: 0,
-      minutes: 0,
-      seconds: 0,
-      progressPercentage: 0,
-      isPassed: false,
-      message: "Error calculating timer."
-    };
-  }
-  
-  /**
-   * Calculate number of days between two dates accurately
-   * @param {Date} startDate - Start date
-   * @param {Date} endDate - End date
-   * @returns {number} Number of days between dates
-   * @private
-   */
-  _getDaysBetweenDates(startDate, endDate) {
-    // Clone dates to avoid modifying originals
-    const start = new Date(startDate);
-    const end = new Date(endDate);
     
-    // Reset time part for accurate day calculation
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-    
-    // Calculate difference in days
-    const millisecondsPerDay = 1000 * 60 * 60 * 24;
-    return Math.max(0, Math.round((end - start) / millisecondsPerDay));
-  }
-  
-  /**
-   * Calculate time remaining between two dates more accurately
-   * @param {Date} startDate - Start date
-   * @param {Date} endDate - End date
-   * @returns {Object} Time remaining broken down into units
-   * @private
-   */
-  _calculateTimeRemaining(startDate, endDate) {
-    // Calculate total milliseconds remaining
-    const millisRemaining = Math.max(0, endDate - startDate);
-    
-    if (millisRemaining <= 0) {
-      return {
-        total: 0,
-        years: 0,
-        months: 0,
-        days: 0,
-        hours: 0,
-        minutes: 0,
-        seconds: 0
-      };
+    // Register the TimerCalculator class with the ModuleRegistry
+    if (window.ModuleRegistry) {
+        window.ModuleRegistry.register('TimerCalculator', TimerCalculator);
     }
     
-    // For more accurate year and month calculations
-    let tempDate = new Date(startDate);
-    let years = 0;
-    let months = 0;
-    
-    // Calculate years
-    while (true) {
-      const nextYear = new Date(tempDate);
-      nextYear.setFullYear(tempDate.getFullYear() + 1);
-      
-      if (nextYear > endDate) {
-        break;
-      }
-      
-      years++;
-      tempDate = nextYear;
+    // Make TimerCalculator globally available (safely)
+    if (typeof window !== 'undefined') {
+        window.TimerCalculator = TimerCalculator;
     }
-    
-    // Calculate months
-    while (true) {
-      const nextMonth = new Date(tempDate);
-      nextMonth.setMonth(tempDate.getMonth() + 1);
-      
-      if (nextMonth > endDate) {
-        break;
-      }
-      
-      months++;
-      tempDate = nextMonth;
-    }
-    
-    // Calculate remaining days, hours, minutes, seconds from remaining time
-    const remainingMs = endDate - tempDate;
-    
-    // Convert to seconds for simpler calculations
-    let secondsRemaining = Math.floor(remainingMs / 1000);
-    
-    // Calculate days, hours, minutes, and seconds
-    const days = Math.floor(secondsRemaining / 86400);
-    secondsRemaining %= 86400;
-    
-    const hours = Math.floor(secondsRemaining / 3600);
-    secondsRemaining %= 3600;
-    
-    const minutes = Math.floor(secondsRemaining / 60);
-    const seconds = secondsRemaining % 60;
-    
-    return {
-      total: millisRemaining,
-      years,
-      months,
-      days,
-      hours,
-      minutes,
-      seconds
-    };
-  }
-  
-  /**
-   * Check if a year is a leap year
-   * @param {number} year - Year to check
-   * @returns {boolean} True if it's a leap year
-   * @private
-   */
-  _isLeapYear(year) {
-    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-  }
-  
-  /**
-   * Calculate progress percentage for life timer
-   * @param {Date} birthDate - Birth date
-   * @param {Date} endDate - End date (based on life expectancy)
-   * @param {Date} currentDate - Current date
-   * @returns {number} Progress percentage (0-100)
-   * @private
-   */
-  _calculateLifeProgressPercentage(birthDate, endDate, currentDate) {
-    const totalLifespan = endDate - birthDate;
-    const lived = currentDate - birthDate;
-    const percentage = (lived / totalLifespan) * 100;
-    
-    // Ensure percentage is between 0 and 100
-    return Math.max(0, Math.min(100, percentage));
-  }
-  
-  /**
-   * Get ordinal suffix for a number (e.g., 1st, 2nd, 3rd)
-   * @param {number} num - Number to get suffix for
-   * @returns {string} Ordinal suffix
-   * @private
-   */
-  _getOrdinalSuffix(num) {
-    const j = num % 10;
-    const k = num % 100;
-    
-    if (j === 1 && k !== 11) {
-      return 'st';
-    }
-    if (j === 2 && k !== 12) {
-      return 'nd';
-    }
-    if (j === 3 && k !== 13) {
-      return 'rd';
-    }
-    return 'th';
-  }
-}
-
-// Create and export a singleton instance
-const timerCalculator = new TimerCalculator(); 
+})(); 

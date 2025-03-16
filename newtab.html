@@ -4,11 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Countdown Timer</title>
+  <!-- Core styles -->
   <link rel="stylesheet" href="styles/newtab.css">
+  <!-- New timer app styles -->
+  <link rel="stylesheet" href="styles/timer-app.css">
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Use locally sourced anime.js -->
+  <!-- Load only core animation library -->
   <script src="js/anime.min.js" defer></script>
 </head>
 <body class="win11-theme">
@@ -93,6 +97,59 @@
       </div>
     </div>
     
+    <!-- Settings Popup -->
+    <div id="settings-popup" class="settings-popup hidden win11-mica">
+      <div class="settings-header">
+        <h3>Timer Settings</h3>
+        <button id="close-settings" aria-label="Close settings">×</button>
+      </div>
+      
+      <form id="settings-form">
+        <div class="timer-selection">
+          <h4>Timer Type</h4>
+          
+          <div class="timer-option">
+            <input type="radio" id="daily-timer-option" name="timer-type" value="daily">
+            <label for="daily-timer-option">
+              <h4>Daily Timer</h4>
+              <p>Counts down to midnight of the current day</p>
+            </label>
+          </div>
+          
+          <div class="timer-option">
+            <input type="radio" id="birthday-timer-option" name="timer-type" value="birthday">
+            <label for="birthday-timer-option">
+              <h4>Birthday Timer</h4>
+              <p>Counts down to your next birthday</p>
+            </label>
+          </div>
+          
+          <div class="timer-option">
+            <input type="radio" id="life-timer-option" name="timer-type" value="life">
+            <label for="life-timer-option">
+              <h4>Life Timer</h4>
+              <p>Counts down your estimated remaining lifetime</p>
+            </label>
+          </div>
+        </div>
+        
+        <div id="birth-date-group" class="input-group">
+          <label for="birth-date">Your Birth Date:</label>
+          <input type="date" id="birth-date" name="birth-date">
+        </div>
+        
+        <div id="life-expectancy-group" class="input-group">
+          <label for="life-expectancy">Life Expectancy (years):</label>
+          <input type="number" id="life-expectancy" name="life-expectancy" min="1" max="120" value="80">
+        </div>
+        
+        <div class="button-container">
+          <button type="submit" id="save-settings-btn">Save Settings</button>
+          <button type="button" id="cancel-settings-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+    
     <!-- Initial Setup Screen - Now hidden by default -->
     <div id="setup-screen" class="screen hidden win11-mica">
       <div class="setup-container">
@@ -146,7 +203,7 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay hidden win11-acrylic">
       <div class="loading-spinner"></div>
-      <p>Loading settings...</p>
+      <p class="loading-message">Loading settings...</p>
     </div>
     
     <!-- Error message container for showing critical errors -->
@@ -162,7 +219,12 @@
     </div>
   </div>
   
-  <!-- Load required scripts with safe loading approach -->
+  <!-- Load required scripts in the correct order -->
   <script src="js/app-loader.js"></script>
+  <script src="js/moduleRegistry.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/timerCalculations.js"></script>
+  <script src="js/timerApp.js"></script>
+  <script src="js/newtab.js"></script>
 </body>
 </html> 

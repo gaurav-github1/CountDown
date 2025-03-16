@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Countdown Timer",
-  "version": "1.0",
-  "description": "Replace new tab with a customizable countdown timer focusing on life events",
+  "name": "Life Countdown Timer",
+  "version": "1.0.0",
+  "description": "A countdown timer to visualize the passage of time in different ways",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'"
+    "extension_pages": "script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
   },
   "icons": {
-    "16": "icons/IMG_20220426_120041 (Custom) (2).jpg",
-    "48": "icons/IMG_20220426_120041 (Custom) (1).jpg",
-    "128": "icons/IMG_20220426_120041 (Custom).jpg"
+    "16": "icons/icon16.jpg",
+    "48": "icons/icon48.jpg",
+    "128": "icons/icon128.jpg"
   },
   "chrome_url_overrides": {
     "newtab": "newtab.html"
@@ -31,9 +31,9 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/IMG_20220426_120041 (Custom) (2).jpg",
-      "48": "icons/IMG_20220426_120041 (Custom) (1).jpg",
-      "128": "icons/IMG_20220426_120041 (Custom).jpg"
+      "16": "icons/icon16.jpg",
+      "48": "icons/icon48.jpg",
+      "128": "icons/icon128.jpg"
     }
   },
   "minimum_chrome_version": "88"
