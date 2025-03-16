@@ -11,8 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof checkModulesLoaded !== 'function') {
         showError('Core modules not loaded properly. Please reload the page.');
         return;
-    }
-    
+      }
+      
     if (!checkModulesLoaded()) {
         console.log('Waiting for modules to load...');
         
@@ -76,9 +76,9 @@ function initializeApp() {
         // Attempt to fall back to basic timer display
         showBasicTimer();
     }
-}
-
-/**
+  }
+  
+  /**
  * Set up global event listeners
  */
 function setupGlobalEventListeners() {
@@ -103,11 +103,11 @@ function setupGlobalEventListeners() {
                     window.timerApp.openSettings();
                 }
             }
-        }
+      }
     });
-}
-
-/**
+  }
+  
+  /**
  * Display an error message to the user
  * @param {string} message - Error message to display
  */
@@ -132,13 +132,13 @@ function showError(message) {
         if (timerContainer) {
             timerContainer.classList.add('hidden');
         }
-    } else {
+      } else {
         // Fallback if error elements don't exist
         alert('Error: ' + message);
     }
-}
-
-/**
+  }
+  
+  /**
  * Show a basic timer as fallback when the main timer fails
  */
 function showBasicTimer() {
@@ -149,9 +149,9 @@ function showBasicTimer() {
         const timerContainer = document.getElementById('timer-container');
         
         if (!timerContainer) {
-            return;
-        }
-        
+        return;
+      }
+      
         // Show timer container
         timerContainer.classList.remove('hidden');
         
@@ -180,9 +180,9 @@ function showBasicTimer() {
     } catch (error) {
         console.error('Error showing basic timer:', error);
     }
-}
-
-/**
+  }
+  
+  /**
  * Update the basic fallback timer
  */
 function updateBasicTimer() {
@@ -218,9 +218,9 @@ function updateBasicTimer() {
     } catch (error) {
         console.error('Error updating basic timer:', error);
     }
-}
-
-/**
+  }
+  
+  /**
  * Update a time value in the DOM
  * @param {string} unit - Time unit (years, months, days, hours, minutes, seconds)
  * @param {number} value - Value to display

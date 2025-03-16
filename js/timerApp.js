@@ -23,35 +23,65 @@
      * Initialize the timer application constructor
      */
     constructor() {
+      // Initialize logging system first
+      this.initLogging();
+      
+      this.log('Initializing TimerApp');
+      
       // Configuration
       this.config = {
-        debug: true,
         defaultTimerType: 'daily',
-        updateInterval: 1000, // Update interval in milliseconds
+        defaultUpdateFrequency: 1000, // Default update frequency in ms (1 second)
+        backgroundUpdateFrequency: 10000, // Update frequency when tab is not visible (10 seconds)
+        seekBarSnapThreshold: 0.05, // 5% threshold for seek bar snapping
+        animationDuration: 300, // Default animation duration in ms
+        minLifeExpectancy: 1,
+        maxLifeExpectancy: 120,
+        defaultLifeExpectancy: 80,
+        errorRecoveryAttempts: 3, // Number of times to attempt recovery
+        developmentMode: false, // Set to true for additional debug logging
+        quoteUpdateInterval: { min: 40000, max: 60000 } // Random interval to update quotes (40-60 sec)
       };
-
-      // State
+      
+      // Application state
       this.state = {
-        initialized: false,
-        running: false,
-        currentTimerType: null,
-        settings: null,
-        timerInterval: null,
-        previousValues: {
-          years: null,
-          months: null,
-          days: null,
-          hours: null,
-          minutes: null,
-          seconds: null
-        }
+        isInitialized: false,
+        isTimerRunning: false,
+        timerWasRunning: false,
+        isTabVisible: document.visibilityState === 'visible',
+        currentTimerType: this.config.defaultTimerType,
+        lastProgress: 0,
+        previousValues: {},
+        currentValues: {},
+        updateFrequency: this.config.defaultUpdateFrequency,
+        recoveryAttempts: 0,
+        settings: {},
+        quoteUpdateTimeoutId: null
       };
-
-      // DOM elements cache - will be populated in init()
+      
+      // Setup event bindings
+      this._animationFrameId = null;
+      this._lastTimestamp = 0;
+      
+      // Initialize elements as an empty object early to prevent undefined access
       this.elements = {};
-
+      
+      // Initialize storage - use StorageManager directly instead of trying to call initializeStorage
+      try {
+        if (window.StorageManager) {
+          this.storage = new StorageManager();
+          this.log('Storage manager initialized successfully');
+        } else {
+          this.log('StorageManager not available, creating fallback storage');
+          this.storage = this.createFallbackStorage();
+        }
+      } catch (storageError) {
+        this.error('Error initializing storage manager', storageError);
+        // Create a fallback storage manager that uses localStorage
+        this.storage = this.createFallbackStorage();
+      }
+      
       // Dependencies
-      this.storage = null;
       this.calculator = null;
       this.animator = null;
 
@@ -73,6 +103,120 @@
     }
     
     /**
+     * Initialize logging system
+     * Creates a structured logging system with different severity levels
+     */
+    initLogging() {
+      try {
+        // Define log levels
+        this.LOG_LEVELS = {
+          DEBUG: 0,
+          INFO: 1,
+          WARN: 2,
+          ERROR: 3,
+          NONE: 4
+        };
+        
+        // Set current log level (can be adjusted based on environment)
+        this.currentLogLevel = this.LOG_LEVELS.INFO;
+        
+        // Initialize error storage
+        this.errorLog = [];
+        this.maxErrorLogSize = 50; // Limit number of stored errors
+        
+        // Determine if we're in development mode (safely check without using process.env)
+        this.isDev = (typeof chrome === 'undefined' || !chrome?.runtime?.id);
+        
+        // Override console methods to add structured logging
+        this.log = (message, ...args) => {
+          if (this.currentLogLevel <= this.LOG_LEVELS.INFO) {
+            console.log(`[INFO] ${message}`, ...args);
+          }
+          
+          // In dev mode, we always log to help with debugging
+          if (this.isDev && this.currentLogLevel > this.LOG_LEVELS.INFO) {
+            console.log(`[DEV-INFO] ${message}`, ...args);
+          }
+        };
+        
+        this.debug = (message, ...args) => {
+          if (this.currentLogLevel <= this.LOG_LEVELS.DEBUG) {
+            console.debug(`[DEBUG] ${message}`, ...args);
+          }
+        };
+        
+        this.warn = (message, ...args) => {
+          if (this.currentLogLevel <= this.LOG_LEVELS.WARN) {
+            console.warn(`[WARN] ${message}`, ...args);
+          }
+        };
+        
+        this.error = (message, error, ...args) => {
+          if (this.currentLogLevel <= this.LOG_LEVELS.ERROR) {
+            console.error(`[ERROR] ${message}`, error, ...args);
+          }
+          
+          // Store error for potential reporting
+          this.storeError(message, error, args);
+        };
+        
+        console.log('[TimerApp] Logging system initialized');
+      } catch (e) {
+        // Fallback if logging setup fails
+        console.error('[TimerApp] Error initializing logging system:', e);
+        
+        // Set up minimal logging functions to prevent further errors
+        this.log = console.log.bind(console, '[TimerApp]');
+        this.debug = console.debug.bind(console, '[TimerApp]');
+        this.warn = console.warn.bind(console, '[TimerApp]');
+        this.error = console.error.bind(console, '[TimerApp]');
+      }
+    }
+    
+    /**
+     * Store error information for potential reporting
+     * @param {string} message - Error message
+     * @param {Error} error - Error object
+     * @param {Array} args - Additional arguments
+     */
+    storeError(message, error, args = []) {
+      try {
+        // Create error entry with timestamp and stack
+        const errorEntry = {
+          timestamp: new Date().toISOString(),
+          message: message,
+          error: error ? {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+          } : null,
+          additionalInfo: args,
+          userAgent: navigator.userAgent,
+          url: window.location.href
+        };
+        
+        // Add to error log
+        this.errorLog.unshift(errorEntry);
+        
+        // Trim log if it exceeds maximum size
+        if (this.errorLog.length > this.maxErrorLogSize) {
+          this.errorLog = this.errorLog.slice(0, this.maxErrorLogSize);
+        }
+        
+        // Store errors in local storage for potential reporting
+        try {
+          localStorage.setItem('timerErrorLog', JSON.stringify(this.errorLog));
+        } catch (e) {
+          // If storing fails (e.g., quota exceeded), just log the issue
+          console.warn('Failed to store error log', e);
+        }
+      } catch (storeError) {
+        // Last resort logging if error storage itself fails
+        console.error('Failed to process error', storeError);
+      }
+    }
+    
+    /**
      * Initialize the timer application
      * @param {string} [initialTimerType] - Initial timer type
      * @param {Object} [initialSettings] - Initial settings
@@ -80,11 +224,11 @@
      */
     async init(initialTimerType, initialSettings) {
       try {
-        console.log('[TimerApp] Initializing timer application...');
+        this.log('Initializing timer application...');
         
         // Ensure StorageKeys is defined
         if (!window.StorageKeys) {
-          console.warn('[TimerApp] StorageKeys not defined, creating defaults');
+          this.warn('StorageKeys not defined, creating defaults');
           window.StorageKeys = {
             TIMER_TYPE: 'timerType',
             BIRTH_DATE: 'birthDate',
@@ -102,13 +246,9 @@
           loadingOverlay.classList.remove('hidden');
         }
         
-        // Step 3: Initialize storage and load settings
-        try {
-          this.storage = new StorageManager();
-          this.log('Storage manager initialized successfully');
-        } catch (storageError) {
-          this.error('Error initializing storage manager', storageError);
-          // Create a fallback storage manager that uses localStorage
+        // Step 3: Load settings (storage already initialized in constructor)
+        if (!this.storage) {
+          this.error('Storage not initialized', new Error('Storage initialization failed'));
           this.storage = this.createFallbackStorage();
         }
         
@@ -173,7 +313,10 @@
                         this.config.defaultTimerType;
         this.log(`Initializing with timer type: ${timerType}`);
         
-        // Step 7: Show the timer screen
+        // Step 7: Run diagnostics
+        await this._runDiagnostics();
+        
+        // Step 8: Show the timer screen
         try {
           await this.showTimerScreen(timerType);
         } catch (screenError) {
@@ -184,22 +327,22 @@
           }
         }
         
-        // Step 8: Start the timer
+        // Step 9: Start the timer
         this.startTimer();
         
-        // Step 9: Hide loading overlay once everything is ready
+        // Step 10: Hide loading overlay once everything is ready
         if (loadingOverlay) {
           loadingOverlay.classList.add('hidden');
         }
         
-        // Step 10: Show timer container
+        // Step 11: Show timer container
         const timerContainer = document.getElementById('timer-container');
         if (timerContainer) {
           timerContainer.classList.remove('hidden');
         }
         
         // Mark as initialized
-        this.state.initialized = true;
+        this.state.isInitialized = true;
         window.TIMER_INITIALIZED = true;
         
         this.log('TimerApp initialized successfully');
@@ -228,6 +371,74 @@
         }
         
         return false;
+      }
+    }
+    
+    /**
+     * Run diagnostic checks to ensure the environment is ready
+     * @private
+     */
+    async _runDiagnostics() {
+      try {
+        this.log('Running diagnostic checks');
+        
+        // Check local storage access
+        try {
+          localStorage.setItem('timerAppDiagnostic', 'test');
+          const testValue = localStorage.getItem('timerAppDiagnostic');
+          localStorage.removeItem('timerAppDiagnostic');
+          
+          if (testValue !== 'test') {
+            this.warn('LocalStorage read/write test failed');
+          } else {
+            this.log('LocalStorage test successful');
+          }
+        } catch (storageError) {
+          this.warn('LocalStorage access error', storageError);
+        }
+        
+        // Check DOM access
+        if (typeof document === 'undefined') {
+          this.warn('Document object is not available');
+        } else {
+          this.log('Document object is available');
+        }
+        
+        // Check for critical DOM elements
+        const criticalElements = ['timer-screen', 'setup-screen', 'error-screen'];
+        const missingElements = criticalElements.filter(id => !document.getElementById(id));
+        
+        if (missingElements.length > 0) {
+          this.warn('Missing critical DOM elements', missingElements);
+        } else {
+          this.log('All critical DOM elements are present');
+        }
+        
+        // Performance check (safely check if performance API is available)
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+          const perfStart = performance.now();
+          // Simulate a moderate calculation
+          let sum = 0;
+          for (let i = 0; i < 10000; i++) {
+            sum += i;
+          }
+          const perfEnd = performance.now();
+          
+          if (perfEnd - perfStart > 100) {
+            this.warn('Performance check indicates potential issues', { 
+              duration: perfEnd - perfStart,
+              threshold: 100
+            });
+          } else {
+            this.log('Performance check passed', { duration: perfEnd - perfStart });
+          }
+        } else {
+          this.warn('Performance API not available, skipping performance check');
+        }
+        
+        this.log('Diagnostic checks completed');
+      } catch (error) {
+        this.error('Diagnostic checks failed', error);
       }
     }
     
@@ -352,46 +563,77 @@
      */
     setupEventListeners() {
       try {
-        // Settings button click
-        if (this.elements.settingsButton) {
-          this.elements.settingsButton.addEventListener('click', () => {
+        this.log('Setting up event listeners');
+        
+        // Track whether event listeners are already attached to prevent duplicates
+        if (this._eventListenersAttached) {
+          this.log('Event listeners already attached, skipping setup');
+          return;
+        }
+        
+        // Settings button click - use direct DOM access for reliability
+        const settingsButton = document.getElementById('settings-button');
+        if (settingsButton) {
+          // Remove any existing event listeners first
+          const oldClone = settingsButton.cloneNode(true);
+          if (settingsButton.parentNode) {
+            settingsButton.parentNode.replaceChild(oldClone, settingsButton);
+          }
+          
+          // Add fresh event listener
+          oldClone.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             this.log('Settings button clicked');
             this.openSettings();
           });
+          
+          // Store updated reference
+          this.elements.settingsButton = oldClone;
         } else {
           this.log('Settings button element not found');
         }
         
         // Close settings button
-        if (this.elements.closeSettingsButton) {
-          this.elements.closeSettingsButton.addEventListener('click', () => {
+        const closeSettingsButton = document.getElementById('close-settings');
+        if (closeSettingsButton) {
+          closeSettingsButton.addEventListener('click', (e) => {
+            e.preventDefault();
             this.log('Close settings button clicked');
             this.closeSettings();
           });
+          this.elements.closeSettingsButton = closeSettingsButton;
         }
         
         // Cancel settings button
-        if (this.elements.cancelSettingsButton) {
-          this.elements.cancelSettingsButton.addEventListener('click', () => {
+        const cancelSettingsButton = document.getElementById('cancel-settings-btn');
+        if (cancelSettingsButton) {
+          cancelSettingsButton.addEventListener('click', (e) => {
+            e.preventDefault();
             this.log('Cancel settings button clicked');
             this.closeSettings();
           });
+          this.elements.cancelSettingsButton = cancelSettingsButton;
         }
         
         // Settings form submission
-        if (this.elements.settingsForm) {
-          this.elements.settingsForm.addEventListener('submit', (event) => {
+        const settingsForm = document.getElementById('settings-form');
+        if (settingsForm) {
+          settingsForm.addEventListener('submit', (event) => {
             event.preventDefault();
             this.handleSettingsFormSubmit();
           });
+          this.elements.settingsForm = settingsForm;
         }
         
         // Initial setup form submission
-        if (this.elements.setupForm) {
-          this.elements.setupForm.addEventListener('submit', (event) => {
+        const setupForm = document.getElementById('setup-form');
+        if (setupForm) {
+          setupForm.addEventListener('submit', (event) => {
             event.preventDefault();
             this.handleSetupFormSubmit();
           });
+          this.elements.setupForm = setupForm;
         }
         
         // Timer type radio buttons in the settings popup
@@ -415,6 +657,28 @@
           });
         }
         
+        // Keyboard shortcuts for settings
+        document.addEventListener('keydown', (event) => {
+          // ESC key to close settings
+          if (event.key === 'Escape') {
+            const settingsPopup = document.getElementById('settings-popup');
+            if (settingsPopup && !settingsPopup.classList.contains('hidden')) {
+              this.closeSettings();
+            }
+          }
+          
+          // 'S' key to open settings
+          if ((event.key === 's' || event.key === 'S') && 
+              !event.ctrlKey && !event.metaKey && !event.altKey) {
+            const activeElement = document.activeElement;
+            // Only trigger if not in an input/textarea
+            if (!(activeElement instanceof HTMLInputElement || 
+                activeElement instanceof HTMLTextAreaElement)) {
+              this.openSettings();
+            }
+          }
+        });
+        
         // Set up the reset button event listener with a more robust approach
         this.setupResetButton();
         
@@ -425,7 +689,10 @@
           this.log('Seek bar element not found, skipping interaction setup');
         }
         
-        this.log('Event listeners set up');
+        // Mark that event listeners have been attached
+        this._eventListenersAttached = true;
+        
+        this.log('Event listeners set up successfully');
       } catch (error) {
         this.error('Failed to set up event listeners', error);
         // Continue execution without breaking the app
@@ -640,6 +907,104 @@
     }
     
     /**
+     * Update settings form values based on current settings
+     * @param {string} timerType - Timer type to select in form
+     */
+    updateSettingsForm(timerType) {
+      try {
+        this.log('Updating settings form with current values');
+        
+        // Default to daily timer if no type provided
+        if (!timerType) {
+          timerType = this.state?.currentTimerType || 'daily';
+        }
+        
+        // Get radio buttons directly from DOM for reliability
+        const dailyTimerOption = document.getElementById('daily-timer-option');
+        const birthdayTimerOption = document.getElementById('birthday-timer-option');
+        const lifeTimerOption = document.getElementById('life-timer-option');
+        
+        // Update timer type radio buttons
+        if (dailyTimerOption && birthdayTimerOption && lifeTimerOption) {
+          // Set checked property directly
+          dailyTimerOption.checked = timerType === 'daily';
+          birthdayTimerOption.checked = timerType === 'birthday';
+          lifeTimerOption.checked = timerType === 'life';
+          
+          // Force checked attribute to ensure visuals match state
+          if (timerType === 'daily') {
+            dailyTimerOption.setAttribute('checked', 'checked');
+            birthdayTimerOption.removeAttribute('checked');
+            lifeTimerOption.removeAttribute('checked');
+          } else if (timerType === 'birthday') {
+            dailyTimerOption.removeAttribute('checked');
+            birthdayTimerOption.setAttribute('checked', 'checked');
+            lifeTimerOption.removeAttribute('checked');
+          } else if (timerType === 'life') {
+            dailyTimerOption.removeAttribute('checked');
+            birthdayTimerOption.removeAttribute('checked');
+            lifeTimerOption.setAttribute('checked', 'checked');
+          }
+          
+          this.log(`Radio button set to: ${timerType}`);
+        } else {
+          this.log('Timer type radio buttons not found in settings form');
+        }
+        
+        // Update birth date field - get directly from DOM
+        const birthDateInput = document.getElementById('birth-date');
+        const birthDateFromSettings = this.state?.settings?.[window.StorageKeys?.BIRTH_DATE];
+        
+        if (birthDateInput && birthDateFromSettings) {
+          birthDateInput.value = birthDateFromSettings;
+          this.log(`Birth date set to: ${birthDateFromSettings}`);
+        } else if (birthDateInput) {
+          // Clear input if no value in settings
+          birthDateInput.value = '';
+        }
+        
+        // Update life expectancy field - get directly from DOM
+        const lifeExpectancyInput = document.getElementById('life-expectancy');
+        const lifeExpectancyFromSettings = this.state?.settings?.[window.StorageKeys?.LIFE_EXPECTANCY];
+        
+        if (lifeExpectancyInput && lifeExpectancyFromSettings) {
+          lifeExpectancyInput.value = lifeExpectancyFromSettings;
+          this.log(`Life expectancy set to: ${lifeExpectancyFromSettings}`);
+        } else if (lifeExpectancyInput) {
+          // Set default if no value in settings
+          lifeExpectancyInput.value = '80';
+        }
+        
+        // Toggle field visibility based on timer type
+        this.toggleSettingsFields(timerType);
+        
+        this.log('Settings form updated successfully');
+      } catch (error) {
+        this.error('Error updating settings form:', error);
+        // Continue execution without breaking the app
+        
+        // Attempt to recover
+        try {
+          // Force toggle visibility based on timer type as a fallback
+          const birthDateGroup = document.getElementById('birth-date-group');
+          const lifeExpectancyGroup = document.getElementById('life-expectancy-group');
+          
+          if (birthDateGroup) {
+            birthDateGroup.style.display = (timerType === 'birthday' || timerType === 'life') ? 'block' : 'none';
+            birthDateGroup.classList.toggle('hidden', !(timerType === 'birthday' || timerType === 'life'));
+          }
+          
+          if (lifeExpectancyGroup) {
+            lifeExpectancyGroup.style.display = (timerType === 'life') ? 'block' : 'none';
+            lifeExpectancyGroup.classList.toggle('hidden', timerType !== 'life');
+          }
+        } catch (fallbackError) {
+          this.error('Failed to recover settings form update:', fallbackError);
+        }
+      }
+    }
+    
+    /**
      * Toggle visibility of settings fields based on timer type
      * @param {string} timerType - Type of timer
      */
@@ -647,66 +1012,55 @@
       this.log(`Toggling settings fields for ${timerType}`);
       
       try {
+        // Get elements directly from DOM for reliability
+        const birthDateGroup = document.getElementById('birth-date-group');
+        const lifeExpectancyGroup = document.getElementById('life-expectancy-group');
+        
         // Show/hide birth date field
-        if (this.elements.birthDateGroup) {
+        if (birthDateGroup) {
           if (timerType === 'birthday' || timerType === 'life') {
-            this.elements.birthDateGroup.classList.remove('hidden');
+            birthDateGroup.classList.remove('hidden');
+            birthDateGroup.style.display = 'block'; // For redundancy
           } else {
-            this.elements.birthDateGroup.classList.add('hidden');
+            birthDateGroup.classList.add('hidden');
+            birthDateGroup.style.display = 'none'; // For redundancy
           }
         }
         
         // Show/hide life expectancy field
-        if (this.elements.lifeExpectancyGroup) {
+        if (lifeExpectancyGroup) {
           if (timerType === 'life') {
-            this.elements.lifeExpectancyGroup.classList.remove('hidden');
+            lifeExpectancyGroup.classList.remove('hidden');
+            lifeExpectancyGroup.style.display = 'block'; // For redundancy
           } else {
-            this.elements.lifeExpectancyGroup.classList.add('hidden');
+            lifeExpectancyGroup.classList.add('hidden');
+            lifeExpectancyGroup.style.display = 'none'; // For redundancy
           }
         }
+        
+        this.log(`Settings fields toggled for ${timerType}`);
       } catch (error) {
         this.error('Error toggling settings fields', error);
-      }
-    }
-    
-    /**
-     * Update settings form values based on current settings
-     * @param {string} timerType - Timer type to select in form
-     */
-    updateSettingsForm(timerType) {
-      try {
-        // Guard clause: Check if settings form exists
-        if (!this.elements) {
-          this.log('Elements not initialized, skipping settings form update');
-          return;
+        
+        // Try a more direct approach as fallback
+        try {
+          const birthDateGroup = document.getElementById('birth-date-group');
+          const lifeExpectancyGroup = document.getElementById('life-expectancy-group');
+          
+          if (birthDateGroup) {
+            // Toggle with both class and style for redundancy
+            birthDateGroup.classList.toggle('hidden', !(timerType === 'birthday' || timerType === 'life'));
+            birthDateGroup.style.display = (timerType === 'birthday' || timerType === 'life') ? 'block' : 'none';
+          }
+          
+          if (lifeExpectancyGroup) {
+            // Toggle with both class and style for redundancy
+            lifeExpectancyGroup.classList.toggle('hidden', timerType !== 'life');
+            lifeExpectancyGroup.style.display = (timerType === 'life') ? 'block' : 'none';
+          }
+        } catch (fallbackError) {
+          this.error('Fallback for toggling settings fields failed', fallbackError);
         }
-        
-        // Update timer type radio buttons
-        if (this.elements.dailyTimerOption && this.elements.birthdayTimerOption && this.elements.lifeTimerOption) {
-          this.elements.dailyTimerOption.checked = timerType === 'daily';
-          this.elements.birthdayTimerOption.checked = timerType === 'birthday';
-          this.elements.lifeTimerOption.checked = timerType === 'life';
-        } else {
-          this.log('Timer type radio buttons not found in settings form');
-        }
-        
-        // Update birth date field
-        if (this.elements.birthDateInput && this.state.settings && this.state.settings[window.StorageKeys.BIRTH_DATE]) {
-          this.elements.birthDateInput.value = this.state.settings[window.StorageKeys.BIRTH_DATE];
-        }
-        
-        // Update life expectancy field
-        if (this.elements.lifeExpectancyInput && this.state.settings && this.state.settings[window.StorageKeys.LIFE_EXPECTANCY]) {
-          this.elements.lifeExpectancyInput.value = this.state.settings[window.StorageKeys.LIFE_EXPECTANCY];
-        }
-        
-        // Toggle field visibility based on timer type
-        this.toggleSettingsFields(timerType);
-        
-        this.log('Settings form updated');
-      } catch (error) {
-        this.error('Error updating settings form:', error);
-        // Continue execution without breaking the app
       }
     }
     
@@ -741,7 +1095,7 @@
           throw new Error('DOM elements not initialized');
         }
         
-        // Extract form data from settings popup
+        // Extract form data from settings popup - get directly from DOM
         const timerTypeRadios = document.querySelectorAll('#settings-form input[name="timer-type"]');
         let timerType = this.config.defaultTimerType;
         
@@ -752,8 +1106,11 @@
           }
         }
         
-        const birthDate = this.elements.birthDateInput?.value || null;
-        const lifeExpectancy = parseInt(this.elements.lifeExpectancyInput?.value || '80', 10);
+        const birthDateInput = document.getElementById('birth-date');
+        const lifeExpectancyInput = document.getElementById('life-expectancy');
+        
+        const birthDate = birthDateInput?.value || null;
+        const lifeExpectancy = parseInt(lifeExpectancyInput?.value || '80', 10);
         
         this.log('Settings form data:', { timerType, birthDate, lifeExpectancy });
         
@@ -835,6 +1192,9 @@
           this.elements.loadingOverlay.classList.add('hidden');
         }
         
+        // Reset settings failure counter on success
+        this._settingsFailureCounter = 0;
+        
         this.log('Settings applied successfully');
       } catch (error) {
         this.error('Error saving settings:', error);
@@ -844,8 +1204,21 @@
           this.elements.loadingOverlay.classList.add('hidden');
         }
         
-        // Show user-friendly error
-        this.showErrorMessage('Error saving settings. Please try again.');
+        // Increment settings failure counter
+        this._settingsFailureCounter = (this._settingsFailureCounter || 0) + 1;
+        
+        // If we've had multiple failures, try refreshing the settings interface
+        if (this._settingsFailureCounter >= 2) {
+          this.log('Multiple settings failures detected, refreshing interface');
+          this.refreshSettingsInterface();
+          this._settingsFailureCounter = 0;
+          
+          // Show user-friendly error with recovery message
+          this.showErrorMessage('Settings interface has been refreshed due to errors. Please try again.');
+        } else {
+          // Show user-friendly error
+          this.showErrorMessage('Error saving settings. Please try again.');
+        }
       }
     }
     
@@ -869,28 +1242,129 @@
      */
     openSettings() {
       try {
-        // Guard clause: Check if settings popup exists
-        if (!this.elements || !this.elements.settingsPopup) {
-          this.error('Settings popup element not found');
-          return;
+        this.log('Opening settings popup');
+        
+        // Get settings popup directly in case elements reference is stale
+        const settingsPopup = document.getElementById('settings-popup');
+        if (!settingsPopup) {
+          throw new Error('Settings popup element not found in DOM');
         }
         
         // Update form first with current settings
         this.updateSettingsForm(this.state.currentTimerType);
         
-        // Show popup with animation
-        this.elements.settingsPopup.classList.remove('hidden');
+        // Ensure popup is visible
+        settingsPopup.style.display = 'block';
+        settingsPopup.classList.remove('hidden');
+        
+        // Cache the reference
+        this.elements.settingsPopup = settingsPopup;
+        
+        // Add a semi-transparent overlay to prevent clicking underneath
+        let overlay = document.getElementById('settings-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'settings-overlay';
+          overlay.className = 'settings-overlay';
+          overlay.style.position = 'fixed';
+          overlay.style.top = '0';
+          overlay.style.left = '0';
+          overlay.style.width = '100%';
+          overlay.style.height = '100%';
+          overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+          overlay.style.zIndex = '999';
+          document.body.appendChild(overlay);
+          
+          // Make clicking overlay close settings
+          overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+              this.closeSettings();
+            }
+          });
+        } else {
+          overlay.style.display = 'block';
+        }
+        
+        // Set popup z-index to be above overlay
+        settingsPopup.style.zIndex = '1000';
         
         // Add click outside listener with a slight delay to prevent immediate closing
         setTimeout(() => {
           document.addEventListener('click', this.handleOutsideClick);
         }, 100);
         
-        this.log('Settings popup opened');
+        this.log('Settings popup opened successfully');
       } catch (error) {
         this.error('Error opening settings popup:', error);
-        // As a fallback, try a direct alert
-        alert('Could not open settings. Please try reloading the page.');
+        
+        // As a fallback, try a direct approach
+        try {
+          const settingsPopup = document.getElementById('settings-popup');
+          if (settingsPopup) {
+            // Force visible with inline styles
+            settingsPopup.style.display = 'block';
+            settingsPopup.classList.remove('hidden');
+            this.log('Settings opened with fallback method');
+          } else {
+            // Last resort error
+            alert('Could not open settings. The settings popup element was not found.');
+          }
+        } catch (fallbackError) {
+          this.error('Critical error opening settings:', fallbackError);
+          alert('Could not open settings. Please try reloading the page.');
+        }
+      }
+    }
+    
+    /**
+     * Close settings popup
+     */
+    closeSettings() {
+      try {
+        this.log('Closing settings popup');
+        
+        // Get settings popup directly
+        const settingsPopup = document.getElementById('settings-popup');
+        if (settingsPopup) {
+          // Hide with both methods for redundancy
+          settingsPopup.classList.add('hidden');
+          settingsPopup.style.display = 'none';
+        }
+        
+        // Remove overlay if it exists
+        const overlay = document.getElementById('settings-overlay');
+        if (overlay) {
+          overlay.style.display = 'none';
+        }
+        
+        // Remove click outside listener
+        document.removeEventListener('click', this.handleOutsideClick);
+        
+        this.log('Settings popup closed successfully');
+      } catch (error) {
+        this.error('Error closing settings popup:', error);
+        
+        // Try a more direct approach as fallback
+        try {
+          const settingsPopup = document.getElementById('settings-popup');
+          if (settingsPopup) {
+            // Force hide with inline styles
+            settingsPopup.style.display = 'none';
+            settingsPopup.classList.add('hidden');
+            this.log('Settings closed with fallback method');
+          }
+          
+          // Remove overlay
+          const overlay = document.getElementById('settings-overlay');
+          if (overlay) {
+            overlay.style.display = 'none';
+          }
+          
+          document.removeEventListener('click', this.handleOutsideClick);
+        } catch (fallbackError) {
+          this.error('Critical error closing settings:', fallbackError);
+          // Nothing more we can do
+        }
       }
     }
     
@@ -900,42 +1374,46 @@
      */
     handleOutsideClick(event) {
       try {
-        if (this.elements && 
-            this.elements.settingsPopup && 
-            !this.elements.settingsPopup.contains(event.target) && 
-            event.target !== this.elements.settingsButton) {
-          this.closeSettings();
+        // Get elements directly to avoid stale references
+        const settingsPopup = document.getElementById('settings-popup');
+        const settingsButton = document.getElementById('settings-button');
+        
+        if (settingsPopup && 
+            !settingsPopup.contains(event.target) && 
+            event.target !== settingsButton) {
+          // Call instance method via window.timerApp since this may be detached
+          if (window.timerApp && typeof window.timerApp.closeSettings === 'function') {
+            window.timerApp.closeSettings();
+          } else {
+            // Fallback: directly modify the popup
+            settingsPopup.classList.add('hidden');
+            settingsPopup.style.display = 'none';
+            
+            // Remove overlay
+            const overlay = document.getElementById('settings-overlay');
+            if (overlay) {
+              overlay.style.display = 'none';
+            }
+            
+            document.removeEventListener('click', this.handleOutsideClick);
+          }
         }
       } catch (error) {
-        this.error('Error handling click outside settings:', error);
-        // Try to close settings as a fallback
-        this.closeSettings();
-      }
-    }
-    
-    /**
-     * Close settings popup
-     */
-    closeSettings() {
-      try {
-        if (this.elements && 
-            this.elements.settingsPopup && 
-            !this.elements.settingsPopup.classList.contains('hidden')) {
-          this.elements.settingsPopup.classList.add('hidden');
-          
-          // Remove click outside listener
-          document.removeEventListener('click', this.handleOutsideClick);
-          
-          this.log('Settings popup closed');
-        }
-      } catch (error) {
-        this.error('Error closing settings popup:', error);
-        // Try a more direct approach as fallback
+        console.error('[TimerApp] Error handling click outside settings:', error);
+        // Fallback: try to close settings directly
         try {
           const settingsPopup = document.getElementById('settings-popup');
           if (settingsPopup) {
             settingsPopup.classList.add('hidden');
+            settingsPopup.style.display = 'none';
           }
+          
+          // Remove overlay
+          const overlay = document.getElementById('settings-overlay');
+          if (overlay) {
+            overlay.style.display = 'none';
+          }
+          
           document.removeEventListener('click', this.handleOutsideClick);
         } catch (e) {
           // Nothing more we can do
@@ -945,37 +1423,41 @@
     
     /**
      * Start the timer
-     * Handles different timer types and initializes the interval
+     * Handles different timer types and initializes the animation frame
      */
     startTimer() {
       try {
-        this.log(`Starting ${this.state.currentTimerType} timer`);
+        this.log(`Starting timer with type: ${this.state.currentTimerType}`);
         
-        // Clear any existing timer interval
-        if (this.state.timerInterval) {
-          clearInterval(this.state.timerInterval);
-          this.state.timerInterval = null;
+        // Stop any existing timer first
+        this.stopTimer();
+        
+        // Initialize timestamp for animation
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+          this._lastTimestamp = performance.now();
+        } else {
+          // Fallback to Date.now if performance API not available
+          this._lastTimestamp = Date.now();
+          this.warn('Performance API not available, using Date.now() as fallback');
         }
         
-        // Reset previous values
-        this.state.previousValues = {
-          years: null,
-          months: null,
-          days: null,
-          hours: null,
-          minutes: null,
-          seconds: null
-        };
+        // Use requestAnimationFrame for smoother updates if available
+        if (typeof requestAnimationFrame === 'function') {
+          this._animationFrameId = requestAnimationFrame(this._animationFrame.bind(this));
+          this.log('Using requestAnimationFrame for timer updates');
+        } else {
+          // Fallback to setInterval
+          this.state.timerInterval = setInterval(() => {
+            this.updateTimer();
+          }, this.config.defaultUpdateFrequency);
+          this.log('Fallback to setInterval for timer updates');
+        }
         
         // Perform initial update
         this.updateTimer();
         
-        // Set interval for future updates
-        this.state.timerInterval = setInterval(() => {
-          this.updateTimer();
-        }, this.config.updateInterval);
-        
-        this.state.running = true;
+        // Mark timer as running
+        this.state.isTimerRunning = true;
         window.TIMER_RUNNING = true;
         
         this.log('Timer started successfully');
@@ -988,32 +1470,86 @@
     }
     
     /**
+     * Animation frame update function
+     * @param {number} timestamp - Current timestamp from requestAnimationFrame
+     * @private
+     */
+    _animationFrame(timestamp) {
+      try {
+        // Safe guard for timestamp in case it's not provided
+        if (timestamp === undefined || isNaN(timestamp)) {
+          timestamp = typeof performance !== 'undefined' && 
+                     typeof performance.now === 'function' ? 
+                     performance.now() : Date.now();
+        }
+        
+        // Calculate elapsed time
+        const elapsed = timestamp - this._lastTimestamp;
+        
+        // Only update timer if enough time has passed
+        if (elapsed >= this.config.defaultUpdateFrequency) {
+          this.updateTimer();
+          this._lastTimestamp = timestamp;
+        }
+        
+        // Continue the animation loop if timer is running
+        if (this.state.isTimerRunning) {
+          this._animationFrameId = requestAnimationFrame(this._animationFrame.bind(this));
+        }
+      } catch (error) {
+        this.error('Error in animation frame', error);
+        
+        // Fallback to interval timer if animation frame fails
+        this.log('Falling back to interval timer');
+        this.startFallbackTimer();
+      }
+    }
+    
+    /**
+     * Stop the timer
+     * @param {boolean} resetState - Whether to reset the timer state
+     */
+    stopTimer(resetState = true) {
+      try {
+        this.log('Stopping timer');
+        
+        // Cancel any existing animation frame
+        if (this._animationFrameId) {
+          cancelAnimationFrame(this._animationFrameId);
+          this._animationFrameId = null;
+        }
+        
+        // Clear any existing interval
+        if (this.state.timerInterval) {
+          clearInterval(this.state.timerInterval);
+          this.state.timerInterval = null;
+        }
+        
+        // Reset state if requested
+        if (resetState) {
+          this.state.isTimerRunning = false;
+          window.TIMER_RUNNING = false;
+        }
+        
+        this.log('Timer stopped successfully');
+      } catch (error) {
+        this.error('Error stopping timer', error);
+      }
+    }
+    
+    /**
      * Start a very basic fallback timer
      * Used when normal timer fails
      */
     startFallbackTimer() {
       try {
-        console.error('[TimerApp] Starting emergency fallback timer');
+        this.log('Starting emergency fallback timer');
         
-        // Clear any existing timer
-        if (this.state && this.state.timerInterval) {
-          clearInterval(this.state.timerInterval);
-        }
+        // Stop any existing timers
+        this.stopTimer(false);
         
-        // Initialize state if it doesn't exist
-        if (!this.state) {
-          this.state = {
-            running: false,
-            timerInterval: null,
-            currentTimerType: 'daily'
-          };
-        }
-        
-        // Define standard update interval if not set
-        const updateInterval = (this.config && this.config.updateInterval) || 1000;
-        
-        // Create a simple update function that doesn't rely on class methods
-        const updateFunction = () => {
+        // Use setInterval for reliability
+        this.state.timerInterval = setInterval(() => {
           try {
             // Get current time
             const now = new Date();
@@ -1026,71 +1562,32 @@
             const secondsPassed = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
             const progressPercentage = (secondsPassed / totalSeconds) * 100;
             
-            // Directly update DOM elements instead of using class methods
-            const updateElementText = (id, value) => {
-              const el = document.getElementById(id);
-              if (el) el.textContent = String(value).padStart(2, '0');
-            };
+            // Directly update DOM elements - safer approach
+            this.updateElementText('hours-value', hours);
+            this.updateElementText('minutes-value', minutes);
+            this.updateElementText('seconds-value', seconds);
             
-            // Update time values directly
-            updateElementText('hours-value', hours);
-            updateElementText('minutes-value', minutes);
-            updateElementText('seconds-value', seconds);
+            // Update progress bar and percentage
+            this.updateElementStyle('progress-bar', 'width', `${progressPercentage}%`);
+            this.updateElementText('progress-percent', `${Math.round(progressPercentage)}%`);
             
-            // Update progress bar
-            const progressBar = document.getElementById('progress-bar');
-            if (progressBar) {
-              progressBar.style.width = `${progressPercentage}%`;
-            }
+            // Update seek bar elements if they exist
+            this.updateElementStyle('seek-bar-fill', 'width', `${progressPercentage}%`);
+            this.updateElementStyle('seek-bar-handle', 'left', `${progressPercentage}%`);
             
-            // Update progress percentage
-            const progressPercent = document.getElementById('progress-percent');
-            if (progressPercent) {
-              progressPercent.textContent = `${Math.round(progressPercentage)}%`;
-            }
+            // Update timer title and description for clarity
+            this.updateElementText('timer-title', 'Daily Countdown');
+            this.updateElementText('timer-description', 'Time until midnight (fallback mode)');
             
-            // Update timer title and description if needed
-            const timerTitle = document.getElementById('timer-title');
-            if (timerTitle) {
-              timerTitle.textContent = 'Daily Countdown';
-            }
-            
-            const timerDescription = document.getElementById('timer-description');
-            if (timerDescription) {
-              timerDescription.textContent = 'Time remaining until midnight (fallback mode)';
-            }
-            
-            // Simple update for seek bar if present
-            const seekBarFill = document.getElementById('seek-bar-fill');
-            if (seekBarFill) {
-              seekBarFill.style.width = `${progressPercentage}%`;
-            }
-            
-          } catch (innerError) {
-            // Log error but continue execution
-            console.error('[TimerApp] Error in fallback timer update:', innerError);
+          } catch (updateError) {
+            this.error('Error in fallback timer update', updateError);
           }
-        };
+        }, this.config.defaultUpdateFrequency || 1000);
         
-        // Run update immediately
-        updateFunction();
-        
-        // Set interval for future updates
-        this.state.timerInterval = setInterval(updateFunction, updateInterval);
-        
-        this.state.running = true;
-        window.TIMER_RUNNING = true;
-        
-        // Show timer container (fallback mode)
+        // Show timer containers if they're hidden
         const timerContainer = document.getElementById('timer-container');
         if (timerContainer) {
           timerContainer.classList.remove('hidden');
-        }
-        
-        // Hide loading overlay if visible
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-          loadingOverlay.classList.add('hidden');
         }
         
         // Hide error container if visible
@@ -1099,17 +1596,64 @@
           errorContainer.classList.add('hidden');
         }
         
-        console.log('[TimerApp] Fallback timer started successfully');
+        // Hide loading overlay if visible
+        const loadingOverlay = document.getElementById('loading-overlay');
+        if (loadingOverlay) {
+          loadingOverlay.classList.add('hidden');
+        }
+        
+        // Mark timer as running
+        this.state.isTimerRunning = true;
+        window.TIMER_RUNNING = true;
+        
+        this.log('Fallback timer started successfully');
         return true;
       } catch (error) {
-        console.error('[TimerApp] Complete failure in fallback timer:', error);
-        // Show alert as absolute last resort
+        this.error('Critical error in fallback timer', error);
+        
+        // Show a simple alert as absolute last resort
         try {
           alert('Critical timer failure. Please reload the page.');
         } catch (e) {
           // Nothing more we can do
+          console.error('Complete timer failure');
         }
         return false;
+      }
+    }
+    
+    /**
+     * Helper function to safely update element text
+     * @param {string} id - Element ID
+     * @param {string} text - Text to set
+     * @private
+     */
+    updateElementText(id, text) {
+      try {
+        const element = document.getElementById(id);
+        if (element) {
+          element.textContent = text;
+        }
+      } catch (error) {
+        // Silent error - fail gracefully
+      }
+    }
+    
+    /**
+     * Helper function to safely update element style
+     * @param {string} id - Element ID
+     * @param {string} property - CSS property
+     * @param {string} value - CSS value
+     * @private
+     */
+    updateElementStyle(id, property, value) {
+      try {
+        const element = document.getElementById(id);
+        if (element && element.style) {
+          element.style[property] = value;
+        }
+      } catch (error) {
+        // Silent error - fail gracefully
       }
     }
     
@@ -2058,6 +2602,312 @@
           };
         }
       };
+    }
+    
+    /**
+     * Ensure the settings interface is properly initialized and responsive
+     * This fixes issues where settings might become stale or unresponsive
+     */
+    ensureSettingsInterface() {
+      try {
+        this.log('Ensuring settings interface is responsive');
+        
+        // Get the settings popup
+        const settingsPopup = document.getElementById('settings-popup');
+        if (!settingsPopup) {
+          this.error('Settings popup not found in DOM');
+          return;
+        }
+        
+        // Make sure it's initially hidden
+        settingsPopup.classList.add('hidden');
+        settingsPopup.style.display = 'none';
+        
+        // Clear any existing overlay
+        const existingOverlay = document.getElementById('settings-overlay');
+        if (existingOverlay) {
+          existingOverlay.remove();
+        }
+        
+        // Get all form elements
+        const birthDateGroup = document.getElementById('birth-date-group');
+        const lifeExpectancyGroup = document.getElementById('life-expectancy-group');
+        const birthDateInput = document.getElementById('birth-date');
+        const lifeExpectancyInput = document.getElementById('life-expectancy');
+        
+        // Ensure they are in the proper initial state
+        if (birthDateGroup) {
+          // Default to hidden until toggled by timer type
+          birthDateGroup.classList.add('hidden');
+          birthDateGroup.style.display = 'none';
+          
+          // Store reference
+          this.elements.birthDateGroup = birthDateGroup;
+        }
+        
+        if (lifeExpectancyGroup) {
+          // Default to hidden until toggled by timer type
+          lifeExpectancyGroup.classList.add('hidden');
+          lifeExpectancyGroup.style.display = 'none';
+          
+          // Store reference
+          this.elements.lifeExpectancyGroup = lifeExpectancyGroup;
+        }
+        
+        if (birthDateInput) {
+          // Clear any stale value
+          birthDateInput.value = this.state?.settings?.[window.StorageKeys?.BIRTH_DATE] || '';
+          
+          // Store reference
+          this.elements.birthDateInput = birthDateInput;
+        }
+        
+        if (lifeExpectancyInput) {
+          // Set default value
+          lifeExpectancyInput.value = this.state?.settings?.[window.StorageKeys?.LIFE_EXPECTANCY] || '80';
+          
+          // Store reference
+          this.elements.lifeExpectancyInput = lifeExpectancyInput;
+        }
+        
+        // Get radio buttons
+        const dailyTimerOption = document.getElementById('daily-timer-option');
+        const birthdayTimerOption = document.getElementById('birthday-timer-option');
+        const lifeTimerOption = document.getElementById('life-timer-option');
+        
+        // Reset all radio buttons
+        if (dailyTimerOption) {
+          dailyTimerOption.checked = this.state?.currentTimerType === 'daily';
+          this.elements.dailyTimerOption = dailyTimerOption;
+        }
+        
+        if (birthdayTimerOption) {
+          birthdayTimerOption.checked = this.state?.currentTimerType === 'birthday';
+          this.elements.birthdayTimerOption = birthdayTimerOption;
+        }
+        
+        if (lifeTimerOption) {
+          lifeTimerOption.checked = this.state?.currentTimerType === 'life';
+          this.elements.lifeTimerOption = lifeTimerOption;
+        }
+        
+        // Store popup in elements
+        this.elements.settingsPopup = settingsPopup;
+        
+        this.log('Settings interface prepared successfully');
+      } catch (error) {
+        this.error('Error ensuring settings interface:', error);
+        // Non-critical error, continue execution
+      }
+    }
+    
+    /**
+     * Force a refresh of the settings interface if it becomes stale
+     * Call this method if settings aren't working properly
+     */
+    refreshSettingsInterface() {
+      try {
+        this.log('Refreshing settings interface');
+        
+        // First close settings if open
+        this.closeSettings();
+        
+        // Remove any stale event listeners by cloning and replacing elements
+        const refreshElement = (id) => {
+          const element = document.getElementById(id);
+          if (element) {
+            const clone = element.cloneNode(true);
+            if (element.parentNode) {
+              element.parentNode.replaceChild(clone, element);
+            }
+            return clone;
+          }
+          return null;
+        };
+        
+        // Refresh critical settings elements
+        const settingsButton = refreshElement('settings-button');
+        const closeSettingsButton = refreshElement('close-settings');
+        const cancelSettingsButton = refreshElement('cancel-settings-btn');
+        const settingsForm = refreshElement('settings-form');
+        
+        // Update references
+        if (settingsButton) {
+          settingsButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.openSettings();
+          });
+          this.elements.settingsButton = settingsButton;
+        }
+        
+        if (closeSettingsButton) {
+          closeSettingsButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.closeSettings();
+          });
+          this.elements.closeSettingsButton = closeSettingsButton;
+        }
+        
+        if (cancelSettingsButton) {
+          cancelSettingsButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.closeSettings();
+          });
+          this.elements.cancelSettingsButton = cancelSettingsButton;
+        }
+        
+        if (settingsForm) {
+          settingsForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            this.handleSettingsFormSubmit();
+          });
+          this.elements.settingsForm = settingsForm;
+        }
+        
+        // Re-initialize the settings interface
+        this.ensureSettingsInterface();
+        
+        // Update form with current settings
+        this.updateSettingsForm(this.state.currentTimerType);
+        
+        this.log('Settings interface successfully refreshed');
+      } catch (error) {
+        this.error('Error refreshing settings interface:', error);
+        
+        // Last resort: force DOM updates directly
+        try {
+          // Get settings popup directly
+          const settingsPopup = document.getElementById('settings-popup');
+          if (settingsPopup) {
+            // Make sure it's initially hidden
+            settingsPopup.classList.add('hidden');
+            settingsPopup.style.display = 'none';
+          }
+          
+          // Re-attach click handler to settings button
+          const settingsButton = document.getElementById('settings-button');
+          if (settingsButton) {
+            settingsButton.onclick = () => this.openSettings();
+          }
+        } catch (e) {
+          this.error('Fatal error refreshing settings:', e);
+        }
+      }
+    }
+
+    /**
+     * Set up auto-refresh for settings to recover from errors
+     * This adds a listener that monitors for errors and auto-recovers
+     */
+    setupSettingsAutoRecovery() {
+      try {
+        // Don't set up multiple listeners
+        if (this._autoRecoverySetup) {
+          return;
+        }
+        
+        this.log('Setting up settings auto-recovery');
+        
+        // Add click handler to settings button with auto-recovery
+        const settingsButton = document.getElementById('settings-button');
+        
+        if (settingsButton) {
+          // Track clicks on settings button to detect when it's not working
+          let lastSettingsClick = 0;
+          let rapidClickCount = 0;
+          
+          const handleSettingsClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const now = Date.now();
+            
+            // Check if this is a rapid click (within 2 seconds of previous)
+            if (now - lastSettingsClick < 2000) {
+              rapidClickCount++;
+              
+              // If user clicks 3+ times rapidly, settings might be broken
+              if (rapidClickCount >= 3) {
+                this.log('Rapid settings clicks detected, refreshing interface');
+                
+                // Reset counter
+                rapidClickCount = 0;
+                
+                // Force refresh settings interface
+                this.refreshSettingsInterface();
+                
+                // Then try to open settings again
+                setTimeout(() => {
+                  this.openSettings();
+                }, 100);
+                
+                return;
+              }
+            } else {
+              // Reset counter if not a rapid click
+              rapidClickCount = 0;
+            }
+            
+            // Update last click time
+            lastSettingsClick = now;
+            
+            // Normal behavior - open settings
+            this.openSettings();
+          };
+          
+          // Remove existing listeners and add our auto-recovery one
+          const newButton = settingsButton.cloneNode(true);
+          if (settingsButton.parentNode) {
+            settingsButton.parentNode.replaceChild(newButton, settingsButton);
+          }
+          
+          newButton.addEventListener('click', handleSettingsClick);
+          
+          // Update reference
+          this.elements.settingsButton = newButton;
+        }
+        
+        // Create an interval to check and fix settings interface
+        this._settingsCheckInterval = setInterval(() => {
+          try {
+            // Check for common broken state indicators
+            const settingsPopup = document.getElementById('settings-popup');
+            const settingsButton = document.getElementById('settings-button');
+            
+            if (!settingsPopup || !settingsButton) {
+              return; // Elements don't exist yet, nothing to fix
+            }
+            
+            // Cases that indicate broken settings:
+            // 1. Settings popup not hidden but no visible overlay
+            // 2. Stale event listeners (button doesn't respond)
+            
+            // Check if popup is shown but possibly broken
+            if (!settingsPopup.classList.contains('hidden') && 
+                settingsPopup.style.display !== 'none') {
+              
+              // Look for missing overlay
+              const overlay = document.getElementById('settings-overlay');
+              if (!overlay || overlay.style.display === 'none') {
+                this.log('Detected broken settings state: popup visible but no overlay');
+                
+                // Force close and refresh
+                this.closeSettings();
+                this.refreshSettingsInterface();
+              }
+            }
+          } catch (e) {
+            // Silently handle errors in auto-recovery
+            console.error('[TimerApp] Error in settings auto-recovery check:', e);
+          }
+        }, 5000); // Check every 5 seconds
+        
+        this._autoRecoverySetup = true;
+        this.log('Settings auto-recovery set up successfully');
+      } catch (error) {
+        this.error('Failed to set up settings auto-recovery:', error);
+      }
     }
   }
 
